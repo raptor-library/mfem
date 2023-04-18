@@ -44,11 +44,6 @@ Use spack to install googletest
 spack install googletest
 ```
 
-### Gmsh installation with spack
-```bash
-spack install gmsh
-```
-
 ### Artistic Style (Code Beautifier) installation with spack
 ```bash
 spack install astyle

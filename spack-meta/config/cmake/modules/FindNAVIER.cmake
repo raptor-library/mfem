@@ -30,8 +30,9 @@ endif()
 set(NAVIER_FOUND TRUE)
 
 ## Find headers and libraries
-find_library(NAVIER_LIBRARIES navier)
-find_path(NAVIER_INCLUDE_DIRS navier_solver.hpp)
+execute_process(COMMAND bash -c "spack location -i mfem" OUTPUT_VARIABLE MFEM_LOC OUTPUT_STRIP_TRAILING_WHITESPACE)
+find_library(NAVIER_LIBRARIES navier PATHS "${MFEM_LOC}/share/mfem/miniapps/navier")
+find_path(NAVIER_INCLUDE_DIRS navier_solver.hpp PATHS "${MFEM_LOC}/share/mfem/miniapps/navier/lib")
 if(NOT NAVIER_LIBRARIES OR NOT NAVIER_INCLUDE_DIRS)
     set(NAVIER_FOUND FALSE)
 endif()

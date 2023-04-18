@@ -39,7 +39,7 @@ find_package(SUITESPARSE REQUIRED)
 find_package(METIS REQUIRED)
 find_package(HYPRE REQUIRED)
 find_package(MFEM REQUIRED)
-#find_package(NAVIER REQUIRED)
+find_package(NAVIER REQUIRED)
 find_package(GTest REQUIRED)
 find_package(CEED REQUIRED)
 find_package(SUNDIALS REQUIRED)
@@ -53,8 +53,8 @@ target_compile_options(${target}
     )
 
 target_link_libraries(${target}
+    PRIVATE NAVIER::NAVIER
     PRIVATE MFEM::MFEM
-    #PRIVATE NAVIER::NAVIER
     PRIVATE SUITESPARSE::SUITESPARSE
     PRIVATE SUITESPARSE::UMFPACK
     PRIVATE SUITESPARSE::KLU
