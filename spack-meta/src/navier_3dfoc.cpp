@@ -1,4 +1,7 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+
+ 
+
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -53,7 +56,7 @@ int main(int argc, char *argv[])
 
    int serial_refinements = 0;
 
-   Mesh *mesh = new Mesh("box-cylinder.mesh");
+   Mesh *mesh = new Mesh("../data/box-cylinder.mesh");
 
    for (int i = 0; i < serial_refinements; ++i)
    {
@@ -70,7 +73,6 @@ int main(int argc, char *argv[])
 
    // Create the flow solver.
    NavierSolver flowsolver(pmesh, ctx.order, ctx.kin_vis);
-   flowsolver.EnablePA(true);
 
    // Set the initial condition.
    ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();
