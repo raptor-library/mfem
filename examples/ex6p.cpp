@@ -166,10 +166,11 @@ int main(int argc, char *argv[])
    {
       // 9. We can also restart the computation by loading the mesh from a
       //    previously saved check-point.
-      string fname(MakeParFilename("ex6p-checkpoint.", myid));
+      string fname(MakeParFilename("problem.mesh.", myid));
       ifstream ifs(fname);
       MFEM_VERIFY(ifs.good(), "Checkpoint file " << fname << " not found.");
       pmesh = new ParMesh(MPI_COMM_WORLD, ifs);
+      auto smesh = pmesh->GetSerialMesh(0);
    }
 
    int dim = pmesh->Dimension();

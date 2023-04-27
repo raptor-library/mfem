@@ -1092,6 +1092,10 @@ HYPRE_BigInt ParFiniteElementSpace::GetGlobalTDofNumber(int ldof) const
    {
       if (HYPRE_AssumedPartitionCheck())
       {
+         if (ldof == 47 && Mpi::WorldRank() == 4)
+         {
+            std::cout << "ldof 47 ldof_ltdof[ldof] " << ldof_ltdof[ldof] << '\n';
+         }
          return ldof_ltdof[ldof] +
                 tdof_nb_offsets[GetGroupTopo().GetGroupMaster(ldof_group[ldof])];
       }
@@ -1601,8 +1605,38 @@ void ParFiniteElementSpace::ConstructTrueDofs()
    }
    gcomm->SetLTDofTable(ldof_ltdof);
 
+   for (int rank = 0; rank < 6; ++rank)
+   {
+      MPI_Barrier(MPI_COMM_WORLD);
+      if (Mpi::WorldRank() == rank)
+      {
+         std::cout << "R" << rank << " ParFiniteElementSpace::ConstructTrueDofs before broadcast\n";
+         for (const auto &x : ldof_ltdof)
+         {
+            std::cout << x << " ";
+         }
+         std::cout << '\n';
+      }
+      MPI_Barrier(MPI_COMM_WORLD);
+   }
+
    // have the group masters broadcast their ltdofs to the rest of the group
    gcomm->Bcast(ldof_ltdof);
+
+   for (int rank = 0; rank < 6; ++rank)
+   {
+      MPI_Barrier(MPI_COMM_WORLD);
+      if (Mpi::WorldRank() == rank)
+      {
+         std::cout << "R" << rank << " ParFiniteElementSpace::ConstructTrueDofs after broadcast\n";
+         for (const auto &x : ldof_ltdof)
+         {
+            std::cout << x << " ";
+         }
+         std::cout << '\n';
+      }
+      MPI_Barrier(MPI_COMM_WORLD);
+   }
 }
 
 void ParFiniteElementSpace::ConstructTrueNURBSDofs()
