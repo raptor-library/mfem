@@ -194,6 +194,17 @@ int main(int argc, char *argv[])
    ame->GetEigenvalues(eigenvalues);
    ParGridFunction x(fespace);
 
+   // 10a. Define a CurlInterpolator for extracting the B field from the
+   // generated eigenmodes
+   RT_FECollection rt_fec(order - 1, dim);
+   ParFiniteElementSpace rt_fespace(pmesh, &rt_fec);
+   ParDiscreteLinearOperator curl(fespace, &rt_fespace);
+   curl.AddDomainInterpolator(new CurlInterpolator);
+   curl.Assemble();
+   curl.Finalize();
+   auto Curl = std::unique_ptr<HypreParMatrix>(curl.ParallelAssemble());
+   ParGridFunction B(&rt_fespace);
+
    // 11. Save the refined mesh and the modes in parallel. This output can be
    //     viewed later using GLVis: "glvis -np <np> -m mesh -g mode".
    {
@@ -209,12 +220,15 @@ int main(int argc, char *argv[])
          // convert eigenvector from HypreParVector to ParGridFunction
          x = ame->GetEigenvector(i);
 
+         // Compute the B field (∇ × E) from the GridFunction.
+         Curl->Mult(x, B);
+
          mode_name << "mode_" << setfill('0') << setw(2) << i << "."
                    << setfill('0') << setw(6) << myid;
 
          ofstream mode_ofs(mode_name.str().c_str());
          mode_ofs.precision(8);
-         x.Save(mode_ofs);
+         B.Save(mode_ofs);
          mode_name.str("");
       }
    }
@@ -238,8 +252,11 @@ int main(int argc, char *argv[])
          // convert eigenvector from HypreParVector to ParGridFunction
          x = ame->GetEigenvector(i);
 
+         // Compute the B field (∇ × E) from the GridFunction.
+         Curl->Mult(x, B);
+
          mode_sock << "parallel " << num_procs << " " << myid << "\n"
-                   << "solution\n" << *pmesh << x << flush
+                   << "solution\n" << *pmesh << B << flush
                    << "window_title 'Eigenmode " << i+1 << '/' << nev
                    << ", Lambda = " << eigenvalues[i] << "'" << endl;
 
