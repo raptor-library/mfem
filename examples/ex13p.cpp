@@ -202,7 +202,6 @@ int main(int argc, char *argv[])
    curl.AddDomainInterpolator(new CurlInterpolator);
    curl.Assemble();
    curl.Finalize();
-   auto Curl = std::unique_ptr<HypreParMatrix>(curl.ParallelAssemble());
    ParGridFunction B(&rt_fespace);
 
    // 11. Save the refined mesh and the modes in parallel. This output can be
@@ -221,7 +220,7 @@ int main(int argc, char *argv[])
          x = ame->GetEigenvector(i);
 
          // Compute the B field (∇ × E) from the GridFunction.
-         Curl->Mult(x, B);
+         curl.Mult(x, B);
 
          mode_name << "mode_" << setfill('0') << setw(2) << i << "."
                    << setfill('0') << setw(6) << myid;
@@ -253,7 +252,7 @@ int main(int argc, char *argv[])
          x = ame->GetEigenvector(i);
 
          // Compute the B field (∇ × E) from the GridFunction.
-         Curl->Mult(x, B);
+         curl.Mult(x, B);
 
          mode_sock << "parallel " << num_procs << " " << myid << "\n"
                    << "solution\n" << *pmesh << B << flush
