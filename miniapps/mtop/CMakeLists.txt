@@ -11,11 +11,13 @@
 
 list(APPEND SEQMTOP_COMMON_SOURCES
 	paramnonlinearform.cpp
-        mtop_integrators.cpp)
+    mtop_integrators.cpp
+	mtop_MMA.cpp)
 
 list(APPEND SEQMTOP_COMMON_HEADERS
 	paramnonlinearform.hpp
-        mtop_integrators.hpp)
+    mtop_integrators.hpp
+	mtop_MMA.hpp)
 
 convert_filenames_to_full_paths(SEQMTOP_COMMON_SOURCES)
 convert_filenames_to_full_paths(SEQMTOP_COMMON_HEADERS)
@@ -48,6 +50,11 @@ set(PARMTOP_COMMON_FILES
 
 add_mfem_miniapp(parheat
      MAIN parheat.cpp
+     ${PARMTOP_COMMON_FILES}
+     LIBRARIES mfem)
+
+add_mfem_miniapp(MMA_Benchmark
+     MAIN MMA_Benchmark.cpp
      ${PARMTOP_COMMON_FILES}
      LIBRARIES mfem)
 
