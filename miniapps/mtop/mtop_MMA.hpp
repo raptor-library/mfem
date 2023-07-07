@@ -20,13 +20,13 @@ public:
 
    // Set and solve a subproblem: return new xval
    void Update(double* xval, double* dfdx, double* gx, double* dgdx, double* xmin,
-					double xmax);
+               double xmax);
 
 
    // Return KKT residual norms (norm2 and normInf)
    void KKTresidual(double* xval, double* dfdx, double* gx, double* dgdx,
-						  double* xmin, double* xmax, double* norm2,
-						  double* normInf);
+                    double* xmin, double* xmax, double* norm2,
+                    double* normInf);
 
 
    // Options

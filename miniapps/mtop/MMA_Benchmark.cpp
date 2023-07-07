@@ -19,7 +19,7 @@ using namespace mma;
 
 int main(int argc, char *argv[])
 {
-	//Mpi::Init(argc, argv);
+   //Mpi::Init(argc, argv);
 
    //mma::MMA MMAMain(MPI_Comm Comm,int n, int m, double * x, int sx);
    int n;
