@@ -6,7 +6,7 @@
 namespace mma
 {
 
-class MMA 
+class MMA
 {
 public:
    // Construct using defaults subproblem penalization
