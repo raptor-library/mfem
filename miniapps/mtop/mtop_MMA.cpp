@@ -19,18 +19,14 @@ namespace mma
 
    }
 
-   MMA::MMA(MPI_Comm Comm,int n, int m, double * x, int sx)
-   {
-
-   }
+   //MMA::MMA(MPI_Comm Comm,int n, int m, double * x, int sx) {}
 
    void MMA::Update(double* xval, double* dfdx, double* gx, double* dgdx, double* xmin, double xmax)
    {
-
+        printf("\nWorking!\n\n");
    }
 
-   void MMA::KKTresidual(double* xval, double* dfdx, double* gx, double* dgdx, double* xmin, double* xmax, double* norm2,
-                               double* normInf)
+   void MMA::KKTresidual(double* xval, double* dfdx, double* gx, double* dgdx, double* xmin, double* xmax, double* norm2, double* normInf)
    {
 
    }

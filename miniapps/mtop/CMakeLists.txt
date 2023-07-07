@@ -31,12 +31,20 @@ add_mfem_miniapp(seqheat
 	${SEQMTOP_COMMON_FILES}
 	LIBRARIES mfem)
 
+add_mfem_miniapp(MMA-Benchmark
+	MAIN MMA_Benchmark.cpp
+	mtop_MMA.cpp
+	EXTRA_HEADERS mtop_MMA.hpp
+	LIBRARIES mfem)
+
 if(MFEM_USE_MPI)
 
 list(APPEND PARMTOP_COMMON_SOURCES
-	pparamnonlinearform.cpp)
+	pparamnonlinearform.cpp
+	mtop_MMA.cpp)
 list(APPEND PARMTOP_COMMON_HEADERS
-	pparamnonlinearform.hpp)
+	pparamnonlinearform.hpp
+	mtop_MMA.hpp)
 
 convert_filenames_to_full_paths(PARMTOP_COMMON_SOURCES)
 convert_filenames_to_full_paths(PARMTOP_COMMON_HEADERS)

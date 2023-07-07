@@ -19,11 +19,24 @@ using namespace mma;
 
 int main(int argc, char *argv[])
 {
-   Mpi::Init(argc, argv);
+   //Mpi::Init(argc, argv);
 
    //mma::MMA MMAMain(MPI_Comm Comm,int n, int m, double * x, int sx);
+   int n;
+   int m;
+   double * x;
+   int sx;
 
+   double* xval;
+   double* dfdx;
+   double* gx;
+   double* dgdx;
+   double* xmin;
+   double xmax;
 
+   // Call the constructor
+   MMA MMAmain(n,m,x,sx);
+   MMAmain.Update(xval, dfdx, gx, dgdx, xmin, xmax);
 
 
    return 0;

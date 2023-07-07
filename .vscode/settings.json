@@ -1,0 +1,22 @@
+{
+    "files.associations": {
+        "*.cpp": "cpp",
+        "*.c": "c",
+    },
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "C_Cpp.default.cStandard": "c11",
+    "C_Cpp.default.cppStandard": "c++11",
+    "C_Cpp.default.intelliSenseMode": "gcc-x64",
+    "C_Cpp.default.compilerPath": "/usr/local/bin/mpicxx",
+    "C_Cpp.default.compilerArgs": [
+        "-fopenmp",
+        "-I/usr/local/include"
+    ],
+    "C_Cpp.default.includePath": [
+        "/usr/local/include"
+    ],
+    "C_Cpp.default.macFrameworkPath": [
+        "/usr/local/lib"
+    ],
+
+}
