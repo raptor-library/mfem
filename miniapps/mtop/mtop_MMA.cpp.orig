@@ -14,33 +14,33 @@
 namespace mma
 {
 
-   MMA::MMA(int n, int m, double * x, int sx)
-   {
+MMA::MMA(int n, int m, double * x, int sx)
+{
 
-   }
+}
 
-   //MMA::MMA(MPI_Comm Comm,int n, int m, double * x, int sx) {}
+//MMA::MMA(MPI_Comm Comm,int n, int m, double * x, int sx) {}
 
-   void MMA::Update(double* xval, double* dfdx, double* gx, double* dgdx, double* xmin, double xmax)
-   {
-        printf("\nWorking!\n\n");
-   }
+void MMA::Update(double* xval, double* dfdx, double* gx, double* dgdx, double* xmin, double xmax)
+{
+    printf("\nWorking!\n\n");
+}
 
-   void MMA::KKTresidual(double* xval, double* dfdx, double* gx, double* dgdx, double* xmin, double* xmax, double* norm2, double* normInf)
-   {
+void MMA::KKTresidual(double* xval, double* dfdx, double* gx, double* dgdx, double* xmin, double* xmax, double* norm2, double* normInf)
+{
 
-   }
+}
 
 
-    void MMA::Restart(double* xo1, double* xo2, double* U, double* L)
-    {
+void MMA::Restart(double* xo1, double* xo2, double* U, double* L)
+{
 
-    }
+}
 
-    void MMA::SetAsymptotes(double init, double decrease, double increase)
-    {
+void MMA::SetAsymptotes(double init, double decrease, double increase)
+{
 
-    }
+}
 
 
 } // end mma namespace
