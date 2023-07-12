@@ -40,7 +40,8 @@
 using namespace mfem;
 using namespace mma;
 
-void Rosenbrock(double* xval, double a, double b, double* fval, double* dfdx, double* gx, double* dgdx);
+void Rosenbrock(double* xval, double a, double b, double* fval, double* dfdx,
+                double* gx, double* dgdx);
 
 int main(int argc, char *argv[])
 {
@@ -54,7 +55,7 @@ int main(int argc, char *argv[])
    int sx = 1;
    double* xval = new double[n];
    double* x = new double[n];
-   
+
    double* fval = new double;
    double* dfdx = new double[n];
    double* gx = new double[m];
@@ -116,7 +117,8 @@ int main(int argc, char *argv[])
       iter++;
       // Run MMA
       MMA MMAmain(n,m,xval,sx);
-      MMAmain.mmasub(n, m, iter, xval, xmin, xmax, xo1, xo2, *fval, dfdx, gx, dgdx, low, upp, a0, a, c, d, xmma, ymma, zmma, lam, xsi, eta, mu, zet, s);
+      MMAmain.mmasub(n, m, iter, xval, xmin, xmax, xo1, xo2, *fval, dfdx, gx, dgdx,
+                     low, upp, a0, a, c, d, xmma, ymma, zmma, lam, xsi, eta, mu, zet, s);
       // Update design variables
       printf("iter = %d, xval = %f, %f, fval = %f\n", iter, xval[0], xval[1], *fval);
       for (int i = 0; i < n; i++)
@@ -141,11 +143,12 @@ int main(int argc, char *argv[])
 }
 
 
-void Rosenbrock(double* xval, double a, double b, double* fval, double* dfdx, double* gx, double* dgdx)
+void Rosenbrock(double* xval, double a, double b, double* fval, double* dfdx,
+                double* gx, double* dgdx)
 {
    // f = b*(y-x^2)^2 + (a-x)^2
    *fval = b * (xval[1] - xval[0]*xval[0])*(xval[1] - xval[0]*xval[0]) +
-          (a - xval[0])*(a - xval[0]);
+            (a - xval[0])*(a - xval[0]);
 
    dfdx[0] = -4.0*b*xval[0]*(xval[1] - xval[0]*xval[0]) - 2.0*(a - xval[0]);
    dfdx[1] = 2.0*b*(xval[1] - xval[0]*xval[0]);
