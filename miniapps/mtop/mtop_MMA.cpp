@@ -113,9 +113,13 @@ void MMA::mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
       {
          z = (xval[i] - xold1[i]) * (xold1[i] - xold2[i]);
          if (z > 0.0)
+         {
             factor[i] = asyincr;
+         }
          else if (z < 0.0)
+         {
             factor[i] = asydecr;
+         }
       }
       //Find new asymptote
       for (int i = 0; i < nVar; ++i)
@@ -205,7 +209,6 @@ void MMA::mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
 
    subsolv(nVar, nCon, epsimin, low, upp, alfa, beta, p0, q0, P, Q, a0, a, b, c, d,
            xmma, ymma, zmma, lam, xsi, eta, mu, &zet, s);
-   
 }
 
 /**
@@ -423,7 +426,7 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
       }
       // Norm of the residual
       residunorm = std::sqrt(residunorm);
-      
+
       ittt = 0;
 
       while (residumax > 0.9 * epsi && ittt < 200)

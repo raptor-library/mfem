@@ -148,7 +148,7 @@ void Rosenbrock(double* xval, double a, double b, double* fval, double* dfdx,
 {
    // f = b*(y-x^2)^2 + (a-x)^2
    *fval = b * (xval[1] - xval[0]*xval[0])*(xval[1] - xval[0]*xval[0]) +
-            (a - xval[0])*(a - xval[0]);
+           (a - xval[0])*(a - xval[0]);
 
    dfdx[0] = -4.0*b*xval[0]*(xval[1] - xval[0]*xval[0]) - 2.0*(a - xval[0]);
    dfdx[1] = 2.0*b*(xval[1] - xval[0]*xval[0]);
