@@ -20,7 +20,7 @@ public:
 
    // Set and solve a subproblem: return new xval
    void mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
-               double* xmax, double* xold1, double* xold2, double fval,
+               double* xmax, double* xold1, double* xold2, double* fval,
                double* dfdx, double* gx, double* dgdx, double* low,
                double* upp, double a0, double* a, double* c, double* d,
                double* xmma, double* ymma, double* zmma, double* lam,
@@ -38,7 +38,7 @@ public:
                  double* xmin, double* xmax,
                  double* dfdx, double* gx, double* dgdx,
                  double a0, double* a, const double* c, double* d,
-                 double* residu, double* residunorm, double* residumax);
+                 double* kktnorm);
 
    void subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
                 double* alfa, double* beta, double* p0,
