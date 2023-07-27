@@ -14,8 +14,8 @@ public:
 
    //MMA(MPI_Comm Comm,int n, int m, double * x, int sx);
 
-   ~MMA()
-   {};
+   //~MMA()
+   //{};
 
 
    // Set and solve a subproblem: return new xval

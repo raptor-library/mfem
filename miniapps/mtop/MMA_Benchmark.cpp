@@ -91,13 +91,15 @@ int main(int argc, char *argv[])
    std::ofstream mma;
    mma.open("mma.dat");
 
+   MMA MMAmain(nVar, nCon, xval, sx);
+
    for (int i = 0; i < nVar; i++)
    {
-      xval[i] = 0.0;
+      xval[i] = 2.0;
       x[i] = 0.0;
       xo1[i] = 0.0;
       xo2[i] = 0.0;
-      xmin[i] = -1.0;
+      xmin[i] = -2.0;
       xmax[i] = 2.0;
       low[i] = xmin[i];
       upp[i] = xmax[i];
@@ -113,11 +115,7 @@ int main(int argc, char *argv[])
    a[1] = 0.0;
    a[2] = 0.0;
 
-   if (iter < 0.5)
-   {
-      Rosenbrock(xval, aR, bR, fval, dfdx, gx, dgdx);
-   }
-
+   Rosenbrock(xval, aR, bR, fval, dfdx, gx, dgdx);
 
    kktnorm = kkttol + 10;
    while (kktnorm > kkttol && iter < maxiter)
@@ -135,10 +133,8 @@ int main(int argc, char *argv[])
       {
          mma << low[i] << "\n";
       }
-
       iter++;
       // Run MMA
-      MMA MMAmain(nVar,nCon,xval,sx);
       MMAmain.mmasub(nVar, nCon, iter, xval, xmin, xmax, xo1, xo2, fval, dfdx, gx,
                      dgdx,
                      low, upp, a0, a, c, d, xmma, ymma, zmma, lam, xsi, eta, mu, zet, s);
@@ -157,7 +153,7 @@ int main(int argc, char *argv[])
                        xmax, dfdx, gx, dgdx, a0, a, c, d, &kktnorm);
       //printf("kktnorm = %f\n", kktnorm);
    }
-   printf("xval = %f, %f\n", xval[0], xval[1]);
+   //printf("xval = %f, %f\n", xval[0], xval[1]);
    printf("kktnorm = %f\n", kktnorm);
 
    delete[] xval;
