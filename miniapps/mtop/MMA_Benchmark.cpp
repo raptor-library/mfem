@@ -54,7 +54,6 @@ int main(int argc, char *argv[])
    double epsimin = 0.0000001;
    int sx = 1;
    double* xval = new double[nVar];
-   double* x = new double[nVar];
 
    double* fval = new double[1];
    double* dfdx = new double[nVar];
@@ -65,7 +64,7 @@ int main(int argc, char *argv[])
    // Simulation parameters
    int iter = 0;
    int maxiter = 100;
-   int restart = 10;
+   int restart = 5;
    double norm2 = 0.0;
    double normInf = 0.0;
    double kktnorm = 0.0;
@@ -88,22 +87,58 @@ int main(int argc, char *argv[])
    double zet;
    double* s = new double[nCon];
    //Initialize
+   MMA MMAmain(nVar, nCon, xval, sx);
    std::ofstream mma;
    mma.open("mma.dat");
 
-   MMA MMAmain(nVar, nCon, xval, sx);
-
-   for (int i = 0; i < nVar; i++)
+   if (iter == 0)
    {
-      xval[i] = 2.0;
-      x[i] = 0.0;
-      xo1[i] = 0.0;
-      xo2[i] = 0.0;
-      xmin[i] = -2.0;
-      xmax[i] = 2.0;
-      low[i] = xmin[i];
-      upp[i] = xmax[i];
+      for (int i = 0; i < nVar; i++)
+      {
+         xval[i] = 2.0;
+         xo1[i] = 0.0;
+         xo2[i] = 0.0;
+         xmin[i] = -2.0;
+         xmax[i] = 2.0;
+         low[i] = xmin[i];
+         upp[i] = xmax[i];
+      }
    }
+   else
+   {
+      std::ifstream input("Restart.dat");
+      input >> iter;
+      printf("iter = %d\n", iter);
+      for (int i = 0; i < nVar; i++)
+      {
+         input >> xval[i];
+         printf("xval[%d] = %f\n", i, xval[i]);
+      }
+      for (int i = 0; i < nVar; i++)
+      {
+         input >> xo1[i];
+         printf("xo1[%d] = %f\n", i, xo1[i]);
+      }
+      for (int i = 0; i < nVar; i++)
+      {
+         input >> xo2[i];
+         printf("xo2[%d] = %f\n", i, xo2[i]);
+      }
+      for (int i = 0; i < nVar; i++)
+      {
+         input >> upp[i];
+         printf("upp[%d] = %f\n", i, upp[i]);
+      }
+      for (int i = 0; i < nVar; i++)
+      {
+         input >> low[i];
+         printf("low[%d] = %f\n", i, low[i]);
+      }
+      input.close();
+   }
+
+
+
    c[0] = 1000.0;
    c[1] = 1000.0;
    c[2] = 1000.0;
@@ -139,7 +174,6 @@ int main(int argc, char *argv[])
                      dgdx,
                      low, upp, a0, a, c, d, xmma, ymma, zmma, lam, xsi, eta, mu, zet, s);
       // Update design variables
-      //printf("iter = %d, xval = %f, %f, fval = %f\n", iter, xmma[0], xmma[1], *fval);
       for (int i = 0; i < nVar; i++)
       {
          xo2[i] = xo1[i];
@@ -151,13 +185,14 @@ int main(int argc, char *argv[])
       // Compute KKT residual
       MMAmain.kktcheck(nCon, nVar, xmma, ymma, *zmma, lam, xsi, eta, mu, zet, s, xmin,
                        xmax, dfdx, gx, dgdx, a0, a, c, d, &kktnorm);
-      //printf("kktnorm = %f\n", kktnorm);
+      if (iter % restart == 0)
+      {
+         MMAmain.Restart(xval, xo1, xo2, upp, low, nVar, iter);
+      }
    }
-   //printf("xval = %f, %f\n", xval[0], xval[1]);
    printf("kktnorm = %f\n", kktnorm);
 
    delete[] xval;
-   delete[] x;
    delete[] fval;
    delete[] dfdx;
    delete[] gx;
@@ -179,11 +214,12 @@ int main(int argc, char *argv[])
    delete[] eta;
    delete[] mu;
    delete[] s;
+   mma.close();
 
    return 0;
 }
 
-
+// The optimizaiton problem
 void Rosenbrock(double* xval, double a, double b, double* fval, double* dfdx,
                 double* gx, double* dgdx)
 {

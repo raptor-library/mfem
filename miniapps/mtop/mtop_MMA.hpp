@@ -17,7 +17,6 @@ public:
    //~MMA()
    //{};
 
-
    // Set and solve a subproblem: return new xval
    void mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
                double* xmax, double* xold1, double* xold2, double* fval,
@@ -51,11 +50,8 @@ public:
 
    // Options
    // Return necessary data for possible restart
-   void Restart(double* xo1, double* xo2, double* xo3);
-
-   // Set the aggresivity of the moving asymptotes
-   void SetAsymptotes(double init, double decrease, double increase);
-
+   void Restart(double* xo1, double* xo2, double* xo3, double* upp, double* low,
+                int length, int iter);
 
 private:
 

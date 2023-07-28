@@ -1070,14 +1070,33 @@ void MMA::kktcheck(int nCon, int nVar, double* x, double* y, double z,
 
 
 
-void MMA::Restart(double* xo1, double* xo2, double* xo3)
+void MMA::Restart(double* xo1, double* xo2, double* xo3, double* upp,
+                  double* low, int length, int iter)
 {
-   printf("Restart not implemented yet.\n");
+   std::ofstream mma;
+   mma.open("Restart.dat");
+   //print results
+   mma << iter << "\n";
+   for (int i = 0; i < length; i++)
+   {
+      mma << xo1[i] << "\n";
+   }
+   for (int i = 0; i < length; i++)
+   {
+      mma << xo2[i] << "\n";
+   }
+   for (int i = 0; i < length; i++)
+   {
+      mma << xo3[i] << "\n";
+   }
+   for (int i = 0; i < length; i++)
+   {
+      mma << upp[i] << "\n";
+   }
+   for (int i = 0; i < length; i++)
+   {
+      mma << low[i] << "\n";
+   }
+   mma.close();
 }
-
-void MMA::SetAsymptotes(double init, double decrease, double increase)
-{
-
-}
-
 } // end mma namespace
