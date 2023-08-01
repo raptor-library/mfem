@@ -33,9 +33,13 @@
 #include <fstream>
 #include <iostream>
 
+//#ifdef MFEM_USE_LAPACK
+extern "C" void dgesv_(int* nLAP, int* nrhs, double* AA, int* lda, int* ipiv,
+                       double* bb, int* ldb, int* info);
+//#endif
+
 namespace mma
 {
-
 MMA::MMA(int n, int m, double * x, int sx)
 {
    std::cout << "Initialized" << std::endl;
@@ -235,6 +239,7 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
                   double* etamma, double* mumma, double* zetmma, double* smma)
 {
    double epsi = 1.0;
+   double machineEpsilon = 1e-10;
    double* epsvecn = new double[nVar];
    double* epsvecm = new double[nCon];
    double* x = new double[nVar];
@@ -375,8 +380,15 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
          rex[i] = dpsidx[i] - xsi[i] + eta[i];
          rez -= a[i] * lam[i];
          rexsi[i] = xsi[i] * (x[i] - alfa[i]) - epsvecn[i];
+         if (rexsi[i] <= machineEpsilon)
+         {
+            rexsi[i] = machineEpsilon;
+         }
          reeta[i] = eta[i] * (beta[i] - x[i]) - epsvecn[i];
-
+         if (reeta[i] <= machineEpsilon)
+         {
+            reeta[i] = machineEpsilon;
+         }
          residu1[i] = rex[i];
          residu2[nCon + i] = rexsi[i];
          residu2[nCon + nVar + i] = reeta[i];
@@ -451,8 +463,16 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
             dpsidx[i] = plam[i] * uxinv1[i] * uxinv1[i] - qlam[i] * xlinv1[i] * xlinv1[i];
             delx[i] = dpsidx[i] - epsvecn[i] / (x[i] - alfa[i]) + epsvecn[nVar + i] /
                       (beta[i] - x[i]);
+            if (delx[i] <= machineEpsilon)
+            {
+               delx[i] = machineEpsilon;
+            }
             diagx[i] = 2 * (plam[i] / ux3[i] + qlam[i] / xl3[i]) + xsi[i] /
                        (x[i] - alfa[i]) + eta[i] / (beta[i] - x[i]);
+            if (diagx[i] <= machineEpsilon)
+            {
+               diagx[i] = machineEpsilon;
+            }
             diagxinv[i] = 1.0 / diagx[i];
          }
          delz = a0 - epsi/z;
@@ -585,7 +605,6 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
                }
                axz[i] = sum;
             }
-
             //Assemble matrix AA
             for (int i = 0; i < (nVar + 1); i++)
             {
@@ -634,7 +653,6 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
                   sum += GG[j * nVar + i] * (dellamyi[j] * diaglamyiinv[j]);
                }
                bb[i] = -(delx[i] + sum);
-
             }
             sum = 0.0;
             for (int i = 0; i < nCon; i++)
@@ -642,10 +660,27 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
                sum += a[i] * (dellamyi[i] * diaglamyiinv[i]);
             }
             bb[nVar] = -(delz - sum);
+            results << "Entering matrix solver" << std::endl;
             // ----------------------------------------------------------------------------
+            //#ifdef MFEM_USE_LAPACK
+            //solut = AA\bb --> solve linear system of equations using LAPACK
+            int info;
+            int nLAP = nVar + 1;
+            int nrhs = 1;
+            int lda = nLAP;
+            int ldb = nLAP;
+            int* ipiv = new int[nLAP];
+            dgesv_(&nLAP, &nrhs, AA, &lda, ipiv, bb, &ldb, &info);
+            delete[] ipiv;
+            for (int i = 0; i < (nVar + 1); i++)
+            {
+               solut[i] = bb[i];
+            }
+            //#else
             //solut = AA\bb --> solve linear system of equations using Gaussian elimination
             // may cause problems with sparse matrices
-            for (int k = 0; k < (nVar + 1) -1; k++)
+            /*
+            for (int k = 0; k < (nVar + 1) - 1; k++)
             {
                for (int i = k + 1; i < (nVar + 1); i++)
                {
@@ -668,6 +703,8 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
                }
                solut[i] = sum / AA[i * (nVar + 1) + i];
             }
+            #endif
+            */
             // ----------------------------------------------------------------------------
             //dx = solut(1:nVar);
             for (int i = 0; i < nVar; i++)
@@ -712,8 +749,16 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
          {
             dxsi[i] = -xsi[i] + epsvecn[i] / (x[i] - alfa[i]) - (xsi[i] * dx[i]) /
                       (x[i] - alfa[i]);
+            if (dxsi[i] <= machineEpsilon)
+            {
+               dxsi[i] = machineEpsilon;
+            }
             deta[i] = -eta[i] + epsvecn[i] / (beta[i] - x[i]) + (eta[i] * dx[i]) /
                       (beta[i] - x[i]);
+            if (deta[i] <= machineEpsilon)
+            {
+               deta[i] = machineEpsilon;
+            }
             xx[nCon + 1 + nCon + i] = xsi[i];
             xx[nCon + 1 + nCon + nVar + i] = eta[i];
             dxx[nCon + 1 + nCon + i] = dxsi[i];
@@ -769,6 +814,7 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
          itto = 0;
          resinew = 2.0 * residunorm;
 
+         results << "Entering Loop 50" << std::endl;
          while (resinew > residunorm && itto < 50)
          {
             itto++;
@@ -805,7 +851,15 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
                rex[i] = dpsidx[i] - xsi[i] + eta[i];
                rez -= a[i] * lam[i];
                rexsi[i] = xsi[i] * (x[i] - alfa[i]) - epsvecn[i];
+               if (rexsi[i] <= machineEpsilon)
+               {
+                  rexsi[i] = machineEpsilon;
+               }
                reeta[i] = eta[i] * (beta[i] - x[i]) - epsvecn[i];
+               if (reeta[i] <= machineEpsilon)
+               {
+                  reeta[i] = machineEpsilon;
+               }
 
                residu1[i] = rex[i];
                residu2[nCon + i] = rexsi[i];
@@ -899,7 +953,6 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
    delete[] eta;
    delete[] mu;
    delete[] s;
-
    delete[] ux1;
    delete[] ux2;
    delete[] ux3;
@@ -955,7 +1008,6 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
    delete[] stepxx;
    delete[] stepalfa;
    delete[] stepbeta;
-
    delete[] xold;
    delete[] yold;
    delete[] lamold;
