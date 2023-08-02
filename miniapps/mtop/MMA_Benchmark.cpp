@@ -37,7 +37,7 @@
 #include "mtop_MMA.hpp"
 #include <fstream>
 
-using namespace mfem;
+//using namespace mfem;
 using namespace mma;
 
 void Rosenbrock(double* xval, double a, double b, double* fval, double* dfdx,
@@ -90,6 +90,7 @@ int main(int argc, char *argv[])
    MMA MMAmain(nVar, nCon, xval, sx);
    std::ofstream mma;
    mma.open("mma.dat");
+   remove("sub.dat");
 
    if (iter == 0)
    {
@@ -185,10 +186,13 @@ int main(int argc, char *argv[])
       // Compute KKT residual
       MMAmain.kktcheck(nCon, nVar, xmma, ymma, *zmma, lam, xsi, eta, mu, zet, s, xmin,
                        xmax, dfdx, gx, dgdx, a0, a, c, d, &kktnorm);
+
       if (iter % restart == 0)
       {
          MMAmain.Restart(xval, xo1, xo2, upp, low, nVar, iter);
       }
+      printf("iter = %d\n", iter);
+      printf("xval[0] = %f, xval[1] = %f\n", xval[0], xval[1]);
    }
    printf("kktnorm = %f\n", kktnorm);
 

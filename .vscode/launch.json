@@ -8,8 +8,8 @@
             "type": "by-gdb",
             "request": "launch",
             "name": "Launch(gdb)",
-            "program": "${fileBasenameNoExtension}",
-            "cwd": "${workspaceRoot}"
+            "program": "mtop_MMA.cpp",
+            "cwd": "${workspaceFolder}"
         }
     ]
 }
