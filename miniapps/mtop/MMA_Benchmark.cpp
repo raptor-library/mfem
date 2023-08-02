@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
    double* xmax = new double[nVar];
    // Simulation parameters
    int iter = 0;
-   int maxiter = 100;
+   int maxiter = 200;
    int restart = 5;
    double norm2 = 0.0;
    double normInf = 0.0;
@@ -191,8 +191,6 @@ int main(int argc, char *argv[])
       {
          MMAmain.Restart(xval, xo1, xo2, upp, low, nVar, iter);
       }
-      printf("iter = %d\n", iter);
-      printf("xval[0] = %f, xval[1] = %f\n", xval[0], xval[1]);
    }
    printf("kktnorm = %f\n", kktnorm);
 
