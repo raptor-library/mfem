@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
    // Simulation parameters
    int iter = 0;
    int maxiter = 200;
-   int restart = 5;
+   int restart = maxiter + 1;
    double norm2 = 0.0;
    double normInf = 0.0;
    double kktnorm = 0.0;
@@ -90,13 +90,13 @@ int main(int argc, char *argv[])
    MMA MMAmain(nVar, nCon, xval, sx);
    std::ofstream mma;
    mma.open("mma.dat");
-   remove("sub.dat");
+   //remove("sub.dat");
 
    if (iter == 0)
    {
       for (int i = 0; i < nVar; i++)
       {
-         xval[i] = 2.0;
+         xval[i] = 0.0;
          xo1[i] = 0.0;
          xo2[i] = 0.0;
          xmin[i] = -2.0;
@@ -192,7 +192,7 @@ int main(int argc, char *argv[])
          MMAmain.Restart(xval, xo1, xo2, upp, low, nVar, iter);
       }
    }
-   printf("kktnorm = %f\n", kktnorm);
+   printf("Iteration %d: kktnorm = %f\n", iter, kktnorm);
 
    delete[] xval;
    delete[] fval;

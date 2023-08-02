@@ -333,8 +333,8 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
    double zetold;
    double* sold = new double[nCon];
 
-   std::ofstream results;
-   results.open("sub.dat", std::ios::app);
+   //std::ofstream results;
+   //results.open("sub.dat", std::ios::app);
 
    for (int i = 0; i < nVar; i++)
    {
@@ -362,7 +362,15 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
       {
          epsvecn[i] = epsi;
          ux1[i] = upp[i] - x[i];
+         if (std::fabs(ux1[i]) <= machineEpsilon)
+         {
+            ux1[i] = machineEpsilon;
+         }
          xl1[i] = x[i] - low[i];
+         if (std::fabs(xl1[i]) <= machineEpsilon)
+         {
+            xl1[i] = machineEpsilon;
+         }
          ux2[i] = ux1[i]*ux1[i];
          xl2[i] = xl1[i]*xl1[i];
          uxinv1[i] = 1.0 / ux1[i];
@@ -380,12 +388,12 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
          rex[i] = dpsidx[i] - xsi[i] + eta[i];
          rez -= a[i] * lam[i];
          rexsi[i] = xsi[i] * (x[i] - alfa[i]) - epsvecn[i];
-         if (rexsi[i] <= machineEpsilon)
+         if (std::fabs(rexsi[i]) <= machineEpsilon)
          {
             rexsi[i] = machineEpsilon;
          }
          reeta[i] = eta[i] * (beta[i] - x[i]) - epsvecn[i];
-         if (reeta[i] <= machineEpsilon)
+         if (std::fabs(reeta[i]) <= machineEpsilon)
          {
             reeta[i] = machineEpsilon;
          }
@@ -405,6 +413,7 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
          relam[i] = gvec[i] - a[i] * z - y[i] + s[i] - b[i];
          remu[i] = mu[i] * y[i] - epsvecm[i];
          res[i] = lam[i] * s[i] - epsvecm[i];
+
 
          residu2[i] = relam[i];
          residu1[nVar + i] = rey[i];
@@ -463,13 +472,13 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
             dpsidx[i] = plam[i] * uxinv1[i] * uxinv1[i] - qlam[i] * xlinv1[i] * xlinv1[i];
             delx[i] = dpsidx[i] - epsvecn[i] / (x[i] - alfa[i]) + epsvecn[nVar + i] /
                       (beta[i] - x[i]);
-            if (delx[i] <= machineEpsilon)
+            if (std::fabs(delx[i]) <= machineEpsilon)
             {
                delx[i] = machineEpsilon;
             }
             diagx[i] = 2 * (plam[i] / ux3[i] + qlam[i] / xl3[i]) + xsi[i] /
                        (x[i] - alfa[i]) + eta[i] / (beta[i] - x[i]);
-            if (diagx[i] <= machineEpsilon)
+            if (std::fabs(diagx[i]) <= machineEpsilon)
             {
                diagx[i] = machineEpsilon;
             }
@@ -660,7 +669,6 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
                sum += a[i] * (dellamyi[i] * diaglamyiinv[i]);
             }
             bb[nVar] = -(delz - sum);
-            results << "Entering matrix solver" << std::endl;
             // ----------------------------------------------------------------------------
             //#ifdef MFEM_USE_LAPACK
             //solut = AA\bb --> solve linear system of equations using LAPACK
@@ -674,6 +682,10 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
             delete[] ipiv;
             for (int i = 0; i < (nVar + 1); i++)
             {
+               if (std::fabs(bb[i]) <= machineEpsilon || std::isnan(bb[i]))
+               {
+                  bb[i] = machineEpsilon;
+               }
                solut[i] = bb[i];
             }
             //#else
@@ -749,13 +761,13 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
          {
             dxsi[i] = -xsi[i] + epsvecn[i] / (x[i] - alfa[i]) - (xsi[i] * dx[i]) /
                       (x[i] - alfa[i]);
-            if (dxsi[i] <= machineEpsilon)
+            if (std::fabs(dxsi[i]) <= machineEpsilon || std::isnan(dxsi[i]))
             {
                dxsi[i] = machineEpsilon;
             }
             deta[i] = -eta[i] + epsvecn[i] / (beta[i] - x[i]) + (eta[i] * dx[i]) /
                       (beta[i] - x[i]);
-            if (deta[i] <= machineEpsilon)
+            if (std::fabs(deta[i]) <= machineEpsilon || std::isnan(deta[i]))
             {
                deta[i] = machineEpsilon;
             }
@@ -813,8 +825,6 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
 
          itto = 0;
          resinew = 2.0 * residunorm;
-
-         results << "Entering Loop 50" << std::endl;
          while (resinew > residunorm && itto < 50)
          {
             itto++;
@@ -832,9 +842,22 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
                x[i] = xold[i] + steg * dx[i];
                xsi[i] = xsiold[i] + steg * dxsi[i];
                eta[i] = etaold[i] + steg * deta[i];
+               if (std::isnan(eta[i]))
+               {
+                  eta[i] = machineEpsilon;
+               }
+               
 
                ux1[i] = upp[i] - x[i];
                xl1[i] = x[i] - low[i];
+               if (std::fabs(ux1[i]) <= machineEpsilon)
+               {
+                  ux1[i] = machineEpsilon;
+               }
+               if (std::fabs(xl1[i]) <= machineEpsilon)
+               {
+                  xl1[i] = machineEpsilon;
+               }               
                ux2[i] = ux1[i] * ux1[i];
                xl2[i] = xl1[i] * xl1[i];
                uxinv1[i] = 1.0 / ux1[i];
@@ -848,15 +871,19 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
                   qlam[i] += Q[j * nVar + i] * lam[j];
                }
                dpsidx[i] = plam[i] * uxinv1[i] * uxinv1[i] - qlam[i] * xlinv1[i] * xlinv1[i];
+               if (std::fabs(dpsidx[i]) <= machineEpsilon || std::isnan(dpsidx[i]))
+               {
+                  dpsidx[i] = machineEpsilon;
+               }
                rex[i] = dpsidx[i] - xsi[i] + eta[i];
                rez -= a[i] * lam[i];
-               rexsi[i] = xsi[i] * (x[i] - alfa[i]) - epsvecn[i];
-               if (rexsi[i] <= machineEpsilon)
+               rexsi[i] = xsi[i] * (x[i] - alfa[i]) - epsvecn[i];              
+               if (std::fabs(rexsi[i]) <= machineEpsilon)
                {
                   rexsi[i] = machineEpsilon;
                }
                reeta[i] = eta[i] * (beta[i] - x[i]) - epsvecn[i];
-               if (reeta[i] <= machineEpsilon)
+               if (std::fabs(reeta[i]) <= machineEpsilon || std::isnan(reeta[i]))
                {
                   reeta[i] = machineEpsilon;
                }
@@ -943,6 +970,8 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
    }
    *zmma = z;
    *zetmma = zet;
+
+   //results.close();
 
    delete[] epsvecn;
    delete[] epsvecm;

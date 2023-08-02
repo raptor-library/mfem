@@ -7,7 +7,7 @@
             "args": [
                 "-fdiagnostics-color=always",
                 "-g",
-                "${file}", "${fileDirname}/mtop_MMA.cpp",
+                "${fileDirname}/MMA_Benchmark.cpp", "${fileDirname}/mtop_MMA.cpp",
                 "-o",
                 "${fileDirname}/${fileBasenameNoExtension}",
                 "-llapack"
