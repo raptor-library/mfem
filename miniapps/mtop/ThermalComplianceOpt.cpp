@@ -3,8 +3,9 @@
 #include <fstream>
 #include <iostream>
 #include <random>
-//#include "MMA.hpp"
+#include "mtop_MMA.hpp"
 #include "DiffusionSolver.hpp"
+#include <mpi.h>
 //
 
 int main(int argc, char *argv[])
@@ -131,6 +132,7 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
+   
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
