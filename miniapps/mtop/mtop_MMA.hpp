@@ -25,12 +25,6 @@ public:
                double* xmma, double* ymma, double* zmma, double* lam,
                double* xsi, double* eta, double* mu, double& zet, double* s);
 
-
-   // Return KKT residual norms (norm2 and normInf)
-   //void KKTresidual(double* xval, double* dfdx, double* gx, double* dgdx,
-   //                 double* xmin, double* xmax, double* norm2,
-   //                 double* normInf);
-
    void kktcheck(int nCon, int nVar, double* x, double* y, double z,
                  double* lam, double* xsi, double* eta,
                  double* mu, double zet, double* s,
@@ -54,17 +48,18 @@ public:
                 int length, int iter);
 
 private:
+   // Local vectors
+   double* a, c, d;
+   double a0, zet;
+   int z;
 
-
-   // Local vectors: elastic variables
-   double* y;
-   int  z;
-
-   // Local vectors: Lagrange multipliers:
-   double *lam, *mu, *s;
+   // Lagrange multipliers:
+   double* lam, xsi, eta, mu, s;
 
    // Global: Asymptotes, bounds, objective approx., constraint approx.
-   double* L, U, alpha, beta, p0, q0, pij, qij;
+   double* low, upp, alfa, beta, p0, q0, P, Q, xmma, ymma, zmma, lamma, xsimma, etamma, mumma, zetmma, smma;
+
+
 
    // Local: subproblem constant terms, dual gradient, dual hessian
    double *b, *grad, *Hess;

@@ -296,27 +296,7 @@ int main(int argc, char *argv[])
          mfem::ParGridFunction objGradGF(&desFESpace_scalar_H1); objGradGF = objgrad;
          paraview_dc.RegisterField("ObjGrad",&objGradGF);
          paraview_dc.RegisterField("Temp",&TempGF);
-         paraview_dc.Save();
-
-
-         // FIXME TIM
-         {
-              // impose desing variable bounds - set xxmin and xxmax
-              xxmin=desingVarVec; xxmin-=max_ch;
-              xxmax=desingVarVec; xxmax+=max_ch;
-              for(int li=0;li<xxmin.Size();li++)
-              {
-                  if(xxmin[li]<0.1)
-                  {
-                     xxmin[li]=0.1;
-                  }
-                  if(xxmax[li]>0.45)
-                  {
-                     xxmax[li]=0.45;
-                  }
-              }
-         }
-         
+         paraview_dc.Save();         
          
          // if(ConstSensFD)
          // {
@@ -562,10 +542,27 @@ int main(int argc, char *argv[])
              mfem::mfem_error("break before update");
          }
 
-         // FIXME TIM
+         // MMA Routine
 
+         // impose desing variable bounds - set xxmin and xxmax
+         xxmin=desingVarVec; xxmin-=max_ch;
+         xxmax=desingVarVec; xxmax+=max_ch;
+         for(int li=0;li<xxmin.Size();li++)
+         {
+            if(xxmin[li]<0.1)
+            {
+               xxmin[li]=0.1;
+            }
+            if(xxmax[li]>0.45)
+            {
+               xxmax[li]=0.45;
+            }
+         }
          double con=vol/maxVolAllowed-1;                                      // V/V_max -1
-         //mma->Update(desingVarVec,objgrad,&con,&volgrad,xxmin,xxmax);
+         int nVar = desingVarVec.Size();  //number of design variables
+         int nCon = 0;                    //number of constraints
+         mma->mmasub(nVar,nCon,i,desingVarVec,xxmin,xxmax,objgrad,&con,&volgrad,xxmin,xxmax);
+         //MMAmain.mmasub(nVar, nCon, iter, xval, xmin, xmax, xo1, xo2, fval, dfdx, gx, dgdx, low, upp, a0, a, c, d, xmma, ymma, zmma, lam, xsi, eta, mu, zet, s);
 
          std::string tDesingName = "DesingVarVec";
          desingVarVec.Save( tDesingName.c_str() );

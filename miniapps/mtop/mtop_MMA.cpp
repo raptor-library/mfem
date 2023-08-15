@@ -34,10 +34,12 @@
 #include <iostream>
 #include <math.h>
 
-//#ifdef MFEM_USE_LAPACK
+#ifndef MFEM_USE_LAPACK
+#error "MMA relies on LAPACK. Please use MFEM_USE_LAPACK"
+#endif
+
 extern "C" void dgesv_(int* nLAP, int* nrhs, double* AA, int* lda, int* ipiv,
                        double* bb, int* ldb, int* info);
-//#endif
 
 namespace mma
 {
