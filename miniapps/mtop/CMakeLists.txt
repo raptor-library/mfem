@@ -43,12 +43,14 @@ if(MFEM_USE_MPI)
 
 list(APPEND PARMTOP_COMMON_SOURCES
 	pparamnonlinearform.cpp
+	mtop_MMA.cpp
 	DiffusionSolver.cpp
-	mtop_MMA.cpp)
+	)
 list(APPEND PARMTOP_COMMON_HEADERS
 	pparamnonlinearform.hpp
+	mtop_MMA.hpp
 	DiffusionSolver.hpp
-	mtop_MMA.hpp)
+	)
 
 convert_filenames_to_full_paths(PARMTOP_COMMON_SOURCES)
 convert_filenames_to_full_paths(PARMTOP_COMMON_HEADERS)
@@ -67,12 +69,12 @@ add_mfem_miniapp(parheat
 
 add_mfem_miniapp(MMA_Benchmark
      MAIN MMA_Benchmark.cpp
-     ${PARMTOP_COMMON_FILES}
+	 ${PARMTOP_COMMON_FILES}
      LIBRARIES mfem)
 
 add_mfem_miniapp(ThermalComplianceOpt
      MAIN ThermalComplianceOpt.cpp
-     ${PARMTOP_COMMON_FILES}
+	 ${PARMTOP_COMMON_FILES}
      LIBRARIES mfem)
 
 endif ()

@@ -32,6 +32,7 @@
 #include "mtop_MMA.hpp"
 #include <fstream>
 #include <iostream>
+#include <math.h>
 
 //#ifdef MFEM_USE_LAPACK
 extern "C" void dgesv_(int* nLAP, int* nrhs, double* AA, int* lda, int* ipiv,
