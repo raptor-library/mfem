@@ -8,6 +8,8 @@
 #include <mpi.h>
 //
 
+using namespace mma;
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI
@@ -226,6 +228,13 @@ int main(int argc, char *argv[])
 
    if(true)
    {
+      //--------------------------------------------------------------------------------
+      // Set Up MMA
+      int nVar = desingVarVec.Size();
+      //int nCon = sizeof(vol)/sizeof(vol[0]);
+      //MMA MMAmain(nVar, nCon, 0);
+
+      //--------------------------------------------------------------------------------
       std::cout<<"opt iter"<<std::endl;
 
       for(int i=1;i<max_it;i++)
@@ -559,10 +568,11 @@ int main(int argc, char *argv[])
             }
          }
          double con=vol/maxVolAllowed-1;                                      // V/V_max -1
-         int nVar = desingVarVec.Size();  //number of design variables
-         int nCon = 0;                    //number of constraints
-         mma->mmasub(nVar,nCon,i,desingVarVec,xxmin,xxmax,objgrad,&con,&volgrad,xxmin,xxmax);
-         //MMAmain.mmasub(nVar, nCon, iter, xval, xmin, xmax, xo1, xo2, fval, dfdx, gx, dgdx, low, upp, a0, a, c, d, xmma, ymma, zmma, lam, xsi, eta, mu, zet, s);
+         volgrad /= maxVolAllowed;
+         //mma->mmasub(nVar,nCon,i,desingVarVec,xxmin,xxmax,objgrad,&con,&volgrad,xxmin,xxmax);
+
+
+         MMAmain.Update(desingVarVec.Size, 1, i, desingVarVec.GetData, xxmin, xxmax, ThermalCompliance, objgrad, con, volgrad);
 
          std::string tDesingName = "DesingVarVec";
          desingVarVec.Save( tDesingName.c_str() );

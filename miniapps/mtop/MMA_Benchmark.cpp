@@ -67,156 +67,62 @@ int main(int argc, char *argv[])
    int restart = maxiter + 1;
    double norm2 = 0.0;
    double normInf = 0.0;
-   double kktnorm = 0.0;
    double kkttol = 0.0;
-   double* low = new double[nVar];
-   double* upp = new double[nVar];
-   double* xo1 = new double[nVar];
-   double* xo2 = new double[nVar];
-   double* c = new double[nCon];
-   double* d = new double[nCon];
-   double* a = new double[nCon];
+   //double* low = new double[nVar];
+   //double* upp = new double[nVar];
+   //double* xo1 = new double[nVar];
+   //double* xo2 = new double[nVar];
+   //double* c = new double[nCon];
+   //double* d = new double[nCon];
+   //double* a = new double[nCon];
    // Results
-   double* xmma = new double[nVar];
-   double* ymma = new double[nCon];
-   double* zmma = new double[nCon];
-   double* lam = new double[nCon];
-   double* xsi = new double[nVar];
-   double* eta = new double[nVar];
-   double* mu = new double[nCon];
-   double zet;
-   double* s = new double[nCon];
+   //double* xmma = new double[nVar];
+   //double* ymma = new double[nCon];
+   //double* zmma = new double[nCon];
+   //double* lam = new double[nCon];
+   //double* xsi = new double[nVar];
+   //double* eta = new double[nVar];
+   //double* mu = new double[nCon];
+   //double zet;
+   //double* s = new double[nCon];
    //Initialize
-   MMA MMAmain(nVar, nCon, xval, sx);
-   std::ofstream mma;
-   mma.open("mma.dat");
+   MMA MMAmain(nVar, nCon, iter);
+   //std::ofstream mma;
+   //mma.open("mma.dat");
    //remove("sub.dat");
 
-   if (iter == 0)
+   for (int i = 0; i < nVar; i++)
    {
-      for (int i = 0; i < nVar; i++)
-      {
-         xval[i] = 0.0;
-         xo1[i] = 0.0;
-         xo2[i] = 0.0;
-         xmin[i] = -2.0;
-         xmax[i] = 2.0;
-         low[i] = xmin[i];
-         upp[i] = xmax[i];
-      }
+      xval[i] = 0.0;
+      xmin[i] = -2.0;
+      xmax[i] = 2.0;
+      printf("Xval defined\n");
    }
-   else
-   {
-      std::ifstream input("Restart.dat");
-      input >> iter;
-      printf("iter = %d\n", iter);
-      for (int i = 0; i < nVar; i++)
-      {
-         input >> xval[i];
-         printf("xval[%d] = %f\n", i, xval[i]);
-      }
-      for (int i = 0; i < nVar; i++)
-      {
-         input >> xo1[i];
-         printf("xo1[%d] = %f\n", i, xo1[i]);
-      }
-      for (int i = 0; i < nVar; i++)
-      {
-         input >> xo2[i];
-         printf("xo2[%d] = %f\n", i, xo2[i]);
-      }
-      for (int i = 0; i < nVar; i++)
-      {
-         input >> upp[i];
-         printf("upp[%d] = %f\n", i, upp[i]);
-      }
-      for (int i = 0; i < nVar; i++)
-      {
-         input >> low[i];
-         printf("low[%d] = %f\n", i, low[i]);
-      }
-      input.close();
-   }
-
-
-
-   c[0] = 1000.0;
-   c[1] = 1000.0;
-   c[2] = 1000.0;
-   d[0] = 1.0;
-   d[1] = 1.0;
-   d[2] = 1.0;
-   double a0 = 1.0;
-   a[0] = 0.0;
-   a[1] = 0.0;
-   a[2] = 0.0;
+   
 
    Rosenbrock(xval, aR, bR, fval, dfdx, gx, dgdx);
 
-   kktnorm = kkttol + 10;
-   while (kktnorm > kkttol && iter < maxiter)
+   //kktnorm = kkttol + 10;
+   printf("Entering loop\n");
+   while (iter < maxiter)
    {
-      //print results
-      for (int i = 0; i < nVar; i++)
-      {
-         mma << xval[i] << "\n";
-      }
-      for (int i = 0; i < nVar; i++)
-      {
-         mma << upp[i] << "\n";
-      }
-      for (int i = 0; i < nVar; i++)
-      {
-         mma << low[i] << "\n";
-      }
+      
       iter++;
       // Run MMA
-      MMAmain.mmasub(nVar, nCon, iter, xval, xmin, xmax, xo1, xo2, fval, dfdx, gx,
-                     dgdx,
-                     low, upp, a0, a, c, d, xmma, ymma, zmma, lam, xsi, eta, mu, zet, s);
-      // Update design variables
-      for (int i = 0; i < nVar; i++)
-      {
-         xo2[i] = xo1[i];
-         xo1[i] = xval[i];
-         xval[i] = xmma[i];
-      }
+      //MMAmain.mmasub(nVar, nCon, iter, xval, xmin, xmax, xo1, xo2, fval, dfdx, gx, dgdx);
+      MMAmain.Update(nVar, nCon, iter, xval, xmin, xmax, fval, dfdx, gx, dgdx);
       // Compute objective and constraints
       Rosenbrock(xval, aR, bR, fval, dfdx, gx, dgdx);
       // Compute KKT residual
-      MMAmain.kktcheck(nCon, nVar, xmma, ymma, *zmma, lam, xsi, eta, mu, zet, s, xmin,
-                       xmax, dfdx, gx, dgdx, a0, a, c, d, &kktnorm);
+      //MMAmain.kktcheck(nCon, nVar, xmma, ymma, xmin, xmax, dfdx, gx, dgdx, &kktnorm);
 
       if (iter % restart == 0)
       {
-         MMAmain.Restart(xval, xo1, xo2, upp, low, nVar, iter);
+         MMAmain.Restart(xval, nVar, iter);
       }
    }
-   printf("Iteration %d: kktnorm = %f\n", iter, kktnorm);
-
-   delete[] xval;
-   delete[] fval;
-   delete[] dfdx;
-   delete[] gx;
-   delete[] dgdx;
-   delete[] xmin;
-   delete[] xmax;
-   delete[] low;
-   delete[] upp;
-   delete[] xo1;
-   delete[] xo2;
-   delete[] c;
-   delete[] d;
-   delete[] a;
-   delete[] xmma;
-   delete[] ymma;
-   delete[] zmma;
-   delete[] lam;
-   delete[] xsi;
-   delete[] eta;
-   delete[] mu;
-   delete[] s;
-   mma.close();
+   //printf("Iteration %d: kktnorm = %f\n", iter, kktnorm);
+   //mma.close();
 
    return 0;
 }

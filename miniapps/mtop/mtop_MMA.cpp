@@ -31,11 +31,10 @@
 
 #include "mtop_MMA.hpp"
 #include <fstream>
-#include <iostream>
 #include <math.h>
 
 #ifndef MFEM_USE_LAPACK
-#error "MMA relies on LAPACK. Please use MFEM_USE_LAPACK"
+mfem::mfem_error("MMA relies on LAPACK. Please use MFEM_USE_LAPACK");
 #endif
 
 extern "C" void dgesv_(int* nLAP, int* nrhs, double* AA, int* lda, int* ipiv,
@@ -43,19 +42,22 @@ extern "C" void dgesv_(int* nLAP, int* nrhs, double* AA, int* lda, int* ipiv,
 
 namespace mma
 {
-MMA::MMA(int n, int m, double * x, int sx)
-{
-   std::cout << "Initialized" << std::endl;
-}
+//MMA::MMA(int n, int m, double * x, int sx)
+//{
+//   std::cout << "Initialized" << std::endl;
+//}
 
 //MMA::MMA(MPI_Comm Comm,int n, int m, double * x, int sx) {}
 
+void MMA::Update(int nVar, int nCon, int iter, double* xval, double* xmin,
+                 double* xmax, double* fval, double* dfdx, double* gx, double* dgdx)
+{
+   mmasub(nVar, nCon, iter, xval, xmin, xmax, fval, dfdx, gx, dgdx);
+   kktcheck(nCon, nVar, xmma, ymma, xmin, xmax, dfdx, gx, dgdx);
+}
+
 void MMA::mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
-                 double* xmax, double* xold1, double* xold2, double* fval,
-                 double* dfdx, double* gx, double* dgdx, double* low,
-                 double* upp, double a0, double* a, double* c, double* d,
-                 double* xmma, double* ymma, double* zmma, double* lam,
-                 double* xsi, double* eta, double* mu, double& zet, double* s)
+                 double* xmax, double* fval, double* dfdx, double* gx, double* dgdx)
 {
    double epsimin = 1e-7;
    double raa0 = 0.00001;
@@ -65,24 +67,16 @@ void MMA::mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
    double asyincr = 1.2;
    double asydecr = 0.7;
    double xmamieps = 1e-5;
-
    double* factor = new double[nVar];
-   double lowmin, lowmax, uppmin, uppmax, z = 0;
+   double lowmin, lowmax, uppmin, uppmax, z = 0.0;
    double* xmami = new double[nVar];
    double* ux1 = new double[nVar];
    double* xl1 = new double[nVar];
-   double* p0 = new double[nVar];
-   double* q0 = new double[nVar];
    double* pq0 = new double[nVar];
    double* p = new double[nVar * nCon];
    double* q = new double[nVar * nCon];
    double* pq = new double[nVar * nCon];
    double* b = new double[nCon];
-   double* alfa = new double[nVar];
-   double* beta = new double[nVar];
-
-   double* P = new double[nCon * nVar];
-   double* Q = new double[nCon * nVar];
    double* PQ = new double[nCon * nVar];
 
    for (int i = 0; i < nVar; i++)
@@ -127,19 +121,19 @@ void MMA::mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
       for (int i = 0; i < nVar; i++)
       {
          //Determine sign
-         z = (xval[i] - xold1[i]) * (xold1[i] - xold2[i]);
-         if (z > 0.0)
+          zz = (xval[i] - xo1[i]) * (xo1[i] - xo2[i]);
+         if ( zz > 0.0)
          {
             factor[i] = asyincr;
          }
-         else if (z < 0.0)
+         else if ( zz < 0.0)
          {
             factor[i] = asydecr;
          }
 
          //Find new asymptote
-         low[i] = xval[i] - factor[i] * (xold1[i] - low[i]);
-         upp[i] = xval[i] + factor[i] * (upp[i] - xold1[i]);
+         low[i] = xval[i] - factor[i] * (xo1[i] - low[i]);
+         upp[i] = xval[i] + factor[i] * (upp[i] - xo1[i]);
 
          lowmin = xval[i] - 10.0 * (xmax[i] - xmin[i]);
          lowmax = xval[i] - 0.01 * (xmax[i] - xmin[i]);
@@ -201,25 +195,15 @@ void MMA::mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
       b[i] -= gx[i];
    }
 
-   subsolv(nVar, nCon, epsimin, low, upp, alfa, beta, p0, q0, P, Q, a0, a, b, c, d,
-           xmma, ymma, zmma, lam, xsi, eta, mu, &zet, s);
+   subsolv(nVar, nCon, epsimin, b);
 
-   delete[] factor;
-   delete[] xmami;
-   delete[] ux1;
-   delete[] xl1;
-   delete[] p0;
-   delete[] q0;
-   delete[] p;
-   delete[] q;
-   delete[] pq;
-   delete[] b;
-   delete[] alfa;
-   delete[] beta;
-   delete[] pq0;
-   delete[] P;
-   delete[] Q;
-   delete[] PQ;
+   // Update design variables
+   for (int i = 0; i < nVar; i++)
+   {
+      xo2[i] = xo1[i];
+      xo1[i] = xval[i];
+      xval[i] = xmma[i];
+   }
 }
 
 /**
@@ -233,109 +217,8 @@ void MMA::mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
  * Input: m, n, low, upp, alfa, beta, p0, q0, P, Q, a0, a, b.
  * Output: xmma, ymma, zmma, slack variables and Lagrange multiplers.
 */
-void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
-                  double* alfa, double* beta, double* p0,
-                  double* q0, double* P, double* Q,
-                  double a0, double* a, double* b, double* c,
-                  double* d, double* xmma, double* ymma,
-                  double* zmma, double* lamma, double* xsimma,
-                  double* etamma, double* mumma, double* zetmma, double* smma)
+void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
 {
-   double epsi = 1.0;
-   double machineEpsilon = 1e-10;
-   double* epsvecn = new double[nVar];
-   double* epsvecm = new double[nCon];
-   double* x = new double[nVar];
-   double* y = new double[nCon];
-   double z = 1.0;
-   double* lam = new double[nCon];
-   double* xsi = new double[nVar];
-   double* eta = new double[nVar];
-   double* mu = new double[nCon];
-   double zet = 1.0;
-   double* s = new double[nCon];
-   int ittt, itto, itera = 0;
-
-   double* ux1 = new double[nVar];
-   double* ux2 = new double[nVar];
-   double* ux3 = new double[nVar];
-   double* xl1 = new double[nVar];
-   double* xl2 = new double[nVar];
-   double* xl3 = new double[nVar];
-   double* uxinv1 = new double[nVar];
-   double* xlinv1 = new double[nVar];
-   double* plam = new double[nVar];
-   double* qlam = new double[nVar];
-   double* gvec = new double[nCon];
-   double* dpsidx = new double[nVar];
-   double* rex = new double[nVar];
-   double* rey = new double[nCon];
-   double rez;
-   double* relam = new double[nCon];
-   double* rexsi = new double[nVar];
-   double* reeta = new double[nVar];
-   double* remu = new double[nCon];
-   double rezet;
-   double* res = new double[nCon];
-   double* residu1 = new double[nVar + nCon + 1];
-   double* residu2 = new double[3 * nCon + 2 * nVar + 1];
-   double* residu = new double[3 * nVar + 4 * nCon + 2];
-   double residunorm, residumax, resinew;
-   double* GG = new double[nVar * nCon];
-   double* Puxinv = new double[nVar * nCon];
-   double* Qxlinv = new double[nVar * nCon];
-   double* delx = new double[nVar];
-   double* dely = new double[nCon];
-   double delz;
-   double* dellam = new double[nCon];
-   double* dellamyi = new double[nCon];
-   double* diagx = new double[nVar];
-   double* diagxinv = new double[nVar];
-   double* diagy = new double[nCon];
-   double* diagyinv = new double[nCon];
-   double* diaglam = new double[nCon];
-   double* diaglamyi = new double[nCon];
-   long double* diaglamyiinv = new long double[nCon];
-   double* blam = new double[nCon];
-   double* bb = new double[nVar + 1];
-   double* Alam = new double[nCon * nCon];
-   double* AA = new double[(nVar + 1) * (nVar + 1)];
-   double* solut = new double[nVar + nCon + 1];
-   double* dlam = new double[nCon];
-   double dz;
-   double* dx = new double[nVar];
-   double* dy = new double[nCon];
-   double* dxsi = new double[nVar];
-   double* deta = new double[nVar];
-   double* dmu = new double[nCon];
-   double dzet;
-   double* Axx = new double[nVar * nCon];
-   double azz;
-   double* axz = new double[nVar];
-   double* ds = new double[nCon];
-   double* xx = new double[4 * nCon + 2 * nVar + 2];
-   double* dxx = new double[4 * nCon + 2 * nVar + 2];
-   double* stepxx = new double[4 * nCon + 2 * nVar + 2];
-   double sum, sum1 = 0;
-   double stmxx;
-   double* stepalfa = new double[nVar];
-   double stmalfa;
-   double* stepbeta = new double[nVar];
-   double stmbeta;
-   double stmalbe;
-   double stmalbexx;
-   double stminv;
-   double steg;
-   double* xold = new double[nVar];
-   double* yold = new double[nCon];
-   double zold;
-   double* lamold = new double[nCon];
-   double* xsiold = new double[nVar];
-   double* etaold = new double[nVar];
-   double* muold = new double[nCon];
-   double zetold;
-   double* sold = new double[nCon];
-
    //std::ofstream results;
    //results.open("sub.dat", std::ios::app);
 
@@ -972,106 +855,13 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* low, double* upp,
       smma[i] = s[i];
    }
    *zmma = z;
-   *zetmma = zet;
+   zetmma = zet;
 
    //results.close();
-
-   delete[] epsvecn;
-   delete[] epsvecm;
-   delete[] x;
-   delete[] y;
-   delete[] lam;
-   delete[] xsi;
-   delete[] eta;
-   delete[] mu;
-   delete[] s;
-   delete[] ux1;
-   delete[] ux2;
-   delete[] ux3;
-   delete[] xl1;
-   delete[] xl2;
-   delete[] xl3;
-   delete[] uxinv1;
-   delete[] xlinv1;
-   delete[] plam;
-   delete[] qlam;
-   delete[] gvec;
-   delete[] dpsidx;
-   delete[] rex;
-   delete[] rey;
-   delete[] relam;
-   delete[] rexsi;
-   delete[] reeta;
-   delete[] remu;
-   delete[] res;
-   delete[] residu1;
-   delete[] residu2;
-   delete[] residu;
-   delete[] GG;
-   delete[] Puxinv;
-   delete[] Qxlinv;
-   delete[] delx;
-   delete[] dely;
-   delete[] dellam;
-   delete[] dellamyi;
-   delete[] diagx;
-   delete[] diagxinv;
-   delete[] diagy;
-   delete[] diagyinv;
-   delete[] diaglam;
-   delete[] diaglamyi;
-   delete[] diaglamyiinv;
-   delete[] blam;
-   delete[] bb;
-   delete[] Alam;
-   delete[] AA;
-   delete[] solut;
-   delete[] dlam;
-   delete[] dx;
-   delete[] dy;
-   delete[] dxsi;
-   delete[] deta;
-   delete[] dmu;
-   delete[] Axx;
-   delete[] axz;
-   delete[] ds;
-   delete[] xx;
-   delete[] dxx;
-   delete[] stepxx;
-   delete[] stepalfa;
-   delete[] stepbeta;
-   delete[] xold;
-   delete[] yold;
-   delete[] lamold;
-   delete[] xsiold;
-   delete[] etaold;
-   delete[] muold;
-   delete[] sold;
 }
 
-void MMA::kktcheck(int nCon, int nVar, double* x, double* y, double z,
-                   double* lam, double* xsi, double* eta,
-                   double* mu, double zet, double* s,
-                   double* xmin, double* xmax,
-                   double* dfdx, double* gx, double* dgdx,
-                   double a0, double* a, const double* c, double* d,
-                   double* kktnorm)
+void MMA::kktcheck(int nCon, int nVar, double* x, double* y, double* xmin, double* xmax, double* dfdx, double* gx, double* dgdx)
 {
-   double* rex = new double[nVar];
-   double* rey = new double[nCon];
-   double rez, rezet;
-   double* relam = new double[nCon];
-   double* rexsi = new double[nVar];
-   double* reeta = new double[nVar];
-   double* remu = new double[nCon];
-   double* res = new double[nCon];
-   double* residu1 = new double[nVar + nCon + 1];
-   double* residu2 = new double[2 * nVar + 3 * nCon + 2];
-   double* residu = new double[3 * nVar + 4 * nCon + 2];
-   double residunorm, residumax;
-   double sum = 0.0;
-   double* sum1 = new double[nVar];
-
    for (int i = 0; i < nVar; i++)
    {
       sum1[i] = 0.0;
@@ -1138,24 +928,12 @@ void MMA::kktcheck(int nCon, int nVar, double* x, double* y, double z,
    }
    // Norm of the residual
    residunorm = std::sqrt(residunorm);
-   *kktnorm = residunorm;
-
-   delete[] rex;
-   delete[] rey;
-   delete[] relam ;
-   delete[] rexsi;
-   delete[] reeta;
-   delete[] remu;
-   delete[] res;
-   delete[] residu1;
-   delete[] residu2;
-   delete[] residu;
+   kktnorm = residunorm;
 }
 
 
 
-void MMA::Restart(double* xo1, double* xo2, double* xo3, double* upp,
-                  double* low, int length, int iter)
+void MMA::Restart(double* xval, int length, int iter)
 {
    std::ofstream mma;
    mma.open("Restart.dat");
@@ -1163,15 +941,15 @@ void MMA::Restart(double* xo1, double* xo2, double* xo3, double* upp,
    mma << iter << "\n";
    for (int i = 0; i < length; i++)
    {
+      mma << xval[i] << "\n";
+   }
+   for (int i = 0; i < length; i++)
+   {
       mma << xo1[i] << "\n";
    }
    for (int i = 0; i < length; i++)
    {
       mma << xo2[i] << "\n";
-   }
-   for (int i = 0; i < length; i++)
-   {
-      mma << xo3[i] << "\n";
    }
    for (int i = 0; i < length; i++)
    {
