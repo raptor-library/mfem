@@ -308,6 +308,7 @@ public:
         {
             mfem::mfem_error("ADVDiffAdjointPostIntegrator::GetElementEnergy is not defined!");
         }
+        return 0.0; //FIX THIS
     }
 
     virtual

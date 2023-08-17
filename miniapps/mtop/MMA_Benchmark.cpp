@@ -87,8 +87,8 @@ int main(int argc, char *argv[])
    //double* s = new double[nCon];
    //Initialize
    MMA MMAmain(nVar, nCon, iter);
-   //std::ofstream mma;
-   //mma.open("mma.dat");
+   std::ofstream mma;
+   mma.open("mma.dat");
    //remove("sub.dat");
 
    for (int i = 0; i < nVar; i++)
@@ -96,14 +96,12 @@ int main(int argc, char *argv[])
       xval[i] = 0.0;
       xmin[i] = -2.0;
       xmax[i] = 2.0;
-      printf("Xval defined\n");
    }
    
-
+   mma << xval[0] << " " << xval[1] << std::endl;
    Rosenbrock(xval, aR, bR, fval, dfdx, gx, dgdx);
 
    //kktnorm = kkttol + 10;
-   printf("Entering loop\n");
    while (iter < maxiter)
    {
       
@@ -113,6 +111,7 @@ int main(int argc, char *argv[])
       MMAmain.Update(nVar, nCon, iter, xval, xmin, xmax, fval, dfdx, gx, dgdx);
       // Compute objective and constraints
       Rosenbrock(xval, aR, bR, fval, dfdx, gx, dgdx);
+      mma << xval[0] << " " << xval[1] << std::endl;
       // Compute KKT residual
       //MMAmain.kktcheck(nCon, nVar, xmma, ymma, xmin, xmax, dfdx, gx, dgdx, &kktnorm);
 

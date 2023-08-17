@@ -231,8 +231,7 @@ int main(int argc, char *argv[])
       //--------------------------------------------------------------------------------
       // Set Up MMA
       int nVar = desingVarVec.Size();
-      //int nCon = sizeof(vol)/sizeof(vol[0]);
-      //MMA MMAmain(nVar, nCon, 0);
+      MMA MMAmain(nVar, 1, 0);
 
       //--------------------------------------------------------------------------------
       std::cout<<"opt iter"<<std::endl;
@@ -571,8 +570,7 @@ int main(int argc, char *argv[])
          volgrad /= maxVolAllowed;
          //mma->mmasub(nVar,nCon,i,desingVarVec,xxmin,xxmax,objgrad,&con,&volgrad,xxmin,xxmax);
 
-
-         MMAmain.Update(desingVarVec.Size, 1, i, desingVarVec.GetData, xxmin, xxmax, ThermalCompliance, objgrad, con, volgrad);
+         MMAmain.Update(desingVarVec.Size(), 1, i, desingVarVec.GetData(), xxmin.GetData(), xxmax.GetData(), &ThermalCompliance, objgrad.GetData(), &con, volgrad.GetData());
 
          std::string tDesingName = "DesingVarVec";
          desingVarVec.Save( tDesingName.c_str() );

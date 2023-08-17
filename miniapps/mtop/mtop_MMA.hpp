@@ -67,11 +67,13 @@ private:
       p0 = new double[nVar];
       P = new double[nCon * nVar];
       Q = new double[nCon * nVar];
+      alfa = new double[nVar];
+      beta = new double[nVar];
       z = zet = 1.0;
       kktnorm = 10;
       printf("Initialized ");
 
-      //isInitialized = true;
+      isInitialized = true;
    }
 
    void setMMA(int nVar, int nCon)
@@ -160,7 +162,6 @@ private:
          sum = 0;
          sum1 = new double[nVar];
          stepalfa = new double[nVar];
-         stmalfa;
          stepbeta = new double[nVar];
          xold = new double[nVar];
          yold = new double[nCon];

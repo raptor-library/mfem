@@ -53,32 +53,12 @@ void MMA::Update(int nVar, int nCon, int iter, double* xval, double* xmin,
                  double* xmax, double* fval, double* dfdx, double* gx, double* dgdx)
 {
    mmasub(nVar, nCon, iter, xval, xmin, xmax, fval, dfdx, gx, dgdx);
-   kktcheck(nCon, nVar, xmma, ymma, xmin, xmax, dfdx, gx, dgdx);
+   kktcheck(nVar, nCon, xmma, ymma, xmin, xmax, dfdx, gx, dgdx);
 }
 
 void MMA::mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
                  double* xmax, double* fval, double* dfdx, double* gx, double* dgdx)
 {
-   double epsimin = 1e-7;
-   double raa0 = 0.00001;
-   double move = 0.5;
-   double albefa = 0.1;
-   double asyinit = 0.5;
-   double asyincr = 1.2;
-   double asydecr = 0.7;
-   double xmamieps = 1e-5;
-   double* factor = new double[nVar];
-   double lowmin, lowmax, uppmin, uppmax, z = 0.0;
-   double* xmami = new double[nVar];
-   double* ux1 = new double[nVar];
-   double* xl1 = new double[nVar];
-   double* pq0 = new double[nVar];
-   double* p = new double[nVar * nCon];
-   double* q = new double[nVar * nCon];
-   double* pq = new double[nVar * nCon];
-   double* b = new double[nCon];
-   double* PQ = new double[nCon * nVar];
-
    for (int i = 0; i < nVar; i++)
    {
       factor[i] = asyincr;
@@ -100,12 +80,10 @@ void MMA::mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
       Q[i] = 0.0;
       PQ[i] = 0.0;
    }
-
    for (int i = 0; i < nCon; i++)
    {
       b[i] = 0.0;
    }
-
    // Calculation of the asymptotes low and upp
    if (iter < 2.5)
    {
@@ -146,7 +124,6 @@ void MMA::mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
          upp[i] = std::max(upp[i], uppmin);
       }
    }
-
    for (int i = 0; i < nVar; i++)
    {
       // Calculation of bounds alfa and beta according to:
@@ -221,7 +198,6 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
 {
    //std::ofstream results;
    //results.open("sub.dat", std::ios::app);
-
    for (int i = 0; i < nVar; i++)
    {
       epsvecn[i] = epsi;
@@ -860,7 +836,7 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
    //results.close();
 }
 
-void MMA::kktcheck(int nCon, int nVar, double* x, double* y, double* xmin, double* xmax, double* dfdx, double* gx, double* dgdx)
+void MMA::kktcheck(int nVar, int nCon, double* x, double* y, double* xmin, double* xmax, double* dfdx, double* gx, double* dgdx)
 {
    for (int i = 0; i < nVar; i++)
    {
