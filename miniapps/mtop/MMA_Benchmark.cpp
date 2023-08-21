@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
    double bR = 100.0;
    // Objective parameters
    int nVar = 2;
-   int nCon = 3;
+   int nCon = 1;
    double epsimin = 0.0000001;
    int sx = 1;
    double* xval = new double[nVar];
@@ -63,28 +63,12 @@ int main(int argc, char *argv[])
    double* xmax = new double[nVar];
    // Simulation parameters
    int iter = 0;
-   int maxiter = 200;
+   int maxiter = 1;
    int restart = maxiter + 1;
    double norm2 = 0.0;
    double normInf = 0.0;
    double kkttol = 0.0;
-   //double* low = new double[nVar];
-   //double* upp = new double[nVar];
-   //double* xo1 = new double[nVar];
-   //double* xo2 = new double[nVar];
-   //double* c = new double[nCon];
-   //double* d = new double[nCon];
-   //double* a = new double[nCon];
-   // Results
-   //double* xmma = new double[nVar];
-   //double* ymma = new double[nCon];
-   //double* zmma = new double[nCon];
-   //double* lam = new double[nCon];
-   //double* xsi = new double[nVar];
-   //double* eta = new double[nVar];
-   //double* mu = new double[nCon];
-   //double zet;
-   //double* s = new double[nCon];
+   
    //Initialize
    MMA MMAmain(nVar, nCon, iter);
    std::ofstream mma;
@@ -138,13 +122,13 @@ void Rosenbrock(double* xval, double a, double b, double* fval, double* dfdx,
    dfdx[1] = 2.0*b*(xval[1] - xval[0]*xval[0]);
 
    gx[0] = (xval[0] - 1.0)*(xval[0] - 1.0) + (xval[1] - 1.0)*(xval[1] - 1.0) - 4.0;
-   gx[1] = xval[0] - 2;
-   gx[2] = xval[1] - 1;
+   //gx[1] = xval[0] - 2;
+   //gx[2] = xval[1] - 1;
 
    dgdx[0] = 2.0*(xval[0] - 1.0);
    dgdx[1] = 2.0*(xval[1] - 1.0);
-   dgdx[2] = 1.0;
-   dgdx[3] = 0.0;
-   dgdx[4] = 0.0;
-   dgdx[5] = 1.0;
+   //dgdx[2] = 1.0;
+   //dgdx[3] = 0.0;
+   //dgdx[4] = 0.0;
+   //dgdx[5] = 1.0;
 }

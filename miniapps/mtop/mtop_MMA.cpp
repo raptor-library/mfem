@@ -344,7 +344,7 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
                qlam[i] += Q[j * nVar + i] * lam[j];
             }
             dpsidx[i] = plam[i] * uxinv1[i] * uxinv1[i] - qlam[i] * xlinv1[i] * xlinv1[i];
-            delx[i] = dpsidx[i] - epsvecn[i] / (x[i] - alfa[i]) + epsvecn[nVar + i] /
+            delx[i] = dpsidx[i] - epsvecn[i] / (x[i] - alfa[i]) + epsvecn[i] /
                       (beta[i] - x[i]);
             if (std::fabs(delx[i]) <= machineEpsilon)
             {
@@ -358,8 +358,8 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
             }
             diagxinv[i] = 1.0 / diagx[i];
          }
-         delz = a0 - epsi/z;
 
+         delz = a0 - epsi/z;
          for (int i = 0; i < nCon; i++)
          {
             gvec[i] = 0.0;
@@ -387,51 +387,73 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
             //To-Do: Double check this in debug <---------------------------------------- !!!!!!!!!!!!
             // blam = dellam + dely./diagy - GG*(delx./diagx);
             // bb = [blam; delz];
-            sum = 0.0;
             for (int j = 0; j < nCon; j++)
             {
                sum = 0.0;
                for (int i = 0; i < nVar; i++)
                {
-                  sum -= GG[j * nVar + i] * (delx[i] * diagxinv[i]);
+                  sum += GG[j * nVar + i] * (delx[i] / diagx[i]);
                }
-               blam[j] = dellam[j] + dely[j] * diagyinv[j] - sum;
-               bb[j] = blam[j];
+               blam[j] = dellam[j] + dely[j] / diagy[j] - sum;
+               bb1[j] = blam[j];
             }
-            bb[nCon] = delz;
-
+            bb1[nCon] = delz;
 
             // Alam = spdiags(diaglamyi,0,m,m) + GG*spdiags(diagxinv,0,n,n)*GG';
-            // AA = [Alam     a
+            for (int i = 0; i < nCon; i++)
+            {
+               // Axx = GG*spdiags(diagxinv,0,n,n);
+               for (int k = 0; k < nVar; k++)
+               {
+                  Axx[i * nVar + k] = GG[k * nCon + i] / diagx[k];
+               }
+            }
+            // Alam = spdiags(diaglamyi,0,m,m) + Axx*GG';
+            for (int i = 0; i < nCon; i++)
+            {
+               for (int j = 0; j < nCon; j++)
+               {
+                  Alam[i * nCon + j] = 0.0;
+                  for (int k = 0; k < nVar; k++)
+                  {
+                     Alam[i * nCon + j] += Axx[i * nVar + k] * GG[j * nVar + k];
+                  }
+                  if (i == j)
+                  {
+                     Alam[i * nCon + j] += diaglamyi[i];
+                  }
+               }
+            }
+            // AA1 = [Alam     a
             //       a'    -zet/z];
             for (int i = 0; i < nCon; i++)
             {
-               for (int j = 0; j < nVar; j++)
+               for (int j = 0; j < nCon; j++)
                {
-                  AA[i * nCon + j] = diaglamyi[i] + GG[i * nCon + j] * diagxinv[j] * GG[i * nCon +
-                                                                                        j];
+                  AA1[i * nCon + j] = Alam[i * nCon + j];
                }
-               AA[nCon * nCon + i] = a[i];
-               AA[3 * nCon + i] = a[i];
+               AA1[nCon * nCon + i] = a[i];
+               AA1[nCon * nCon + nCon + i] = a[i];
             }
-            AA[4 * nCon] = -zet / z;
+            AA1[nCon * nCon + nCon + nCon] = -zet / z;                   
+
             // ----------------------------------------------------------------------------
-            //solut = AA\bb --> solve linear system of equations using LAPACK
+            //solut = AA1\bb1 --> solve linear system of equations using LAPACK
             int info;
-            int nLAP = nVar + 1;
+            int nLAP = nCon + 1;
             int nrhs = 1;
             int lda = nLAP;
             int ldb = nLAP;
             int* ipiv = new int[nLAP];
-            dgesv_(&nLAP, &nrhs, AA, &lda, ipiv, bb, &ldb, &info);
+            dgesv_(&nLAP, &nrhs, AA1, &lda, ipiv, bb1, &ldb, &info);
             delete[] ipiv;
-            for (int i = 0; i < (nVar + 1); i++)
+            for (int i = 0; i < (nCon + 1); i++)
             {
-               if (std::fabs(bb[i]) <= machineEpsilon || std::isnan(bb[i]))
+               if (std::isnan(bb1[i]))
                {
-                  bb[i] = machineEpsilon;
+                  bb1[i] = machineEpsilon;
                }
-               solut[i] = bb[i];
+               solut[i] = bb1[i];
             }
             // ----------------------------------------------------------------------------
 
@@ -444,12 +466,16 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
             //dx = -(GG'*dlam)./diagx - delx./diagx;
             for (int i = 0; i < nVar; i++)
             {
-               double sum = 0.0;
+               sum = 0.0;
                for (int j = 0; j < nCon; j++)
                {
-                  sum -= GG[j * nVar + i] * dlam[j];
+                  sum += GG[j * nVar + i] * dlam[j];
                }
-               dx[i] = -sum * diagxinv[i] - delx[i] * diagxinv[i];
+               dx[i] = -sum / diagx[i] - delx[i] / diagx[i];
+               if (std::isnan(dx[i]))
+               {
+                  dx[i] = machineEpsilon;
+               }              
             }
          }
          else
@@ -554,7 +580,6 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
                   bb[i] = machineEpsilon;
                }
                solut[i] = bb[i];
-               printf(" %f ", solut[i]);
             }
             //#else
             //solut = AA\bb --> solve linear system of equations using Gaussian elimination

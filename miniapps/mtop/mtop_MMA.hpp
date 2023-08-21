@@ -30,7 +30,7 @@ private:
    double epsi, machineEpsilon, rez, rezet, delz, dz, dzet, azz, stmxx, stmalfa, stmbeta, stmalbe, sum, stmalbexx, stminv, steg, zold, zetold, residunorm, residumax, resinew;
    double *sum1, *epsvecn, *epsvecm, *x, *y, *ux1, *ux2, *ux3, *xl1, *xl2, *xl3, *uxinv1, *xlinv1, *plam, *qlam, *gvec, *dpsidx, *rex, *rey, *relam,
           *rexsi, *reeta, *remu, *res, *residu1, *residu2, *residu, *GG, *Puxinv, *Qxlinv, *delx, *dely, *dellam, *dellamyi, *diagx, *diagxinv,
-          *diagy, *diagyinv, *diaglam, *diaglamyi, *diaglamyiinv, *blam, *bb, *Alam, *AA, *solut, *dlam, *dx, *dy, *dxsi, *deta, *dmu, *Axx,
+          *diagy, *diagyinv, *diaglam, *diaglamyi, *diaglamyiinv, *blam, *bb, *bb1, *Alam, *AA, *AA1, *solut, *dlam, *dx, *dy, *dxsi, *deta, *dmu, *Axx,
           *axz, *ds, *xx, *dxx, *stepxx, *stepalfa, *stepbeta, *xold, *yold, *lamold, *xsiold, *etaold, *muold, *sold;
 
    // Global: Old design variables
@@ -97,78 +97,80 @@ private:
    }
    void setSubProb(int nVar, int nCon)
    {
-         //Allocate all subproblem variables
-         epsi = 1.0;
-         machineEpsilon = 1e-10;
-         epsvecn = new double[nVar];
-         epsvecm = new double[nCon];
-         x = new double[nVar];
-         y = new double[nCon];
-         ittt = itto = itera = 0;
-         ux1 = new double[nVar];
-         ux2 = new double[nVar];
-         ux3 = new double[nVar];
-         xl1 = new double[nVar];
-         xl2 = new double[nVar];
-         xl3 = new double[nVar];
-         uxinv1 = new double[nVar];
-         xlinv1 = new double[nVar];
-         plam = new double[nVar];
-         qlam = new double[nVar];
-         gvec = new double[nCon];
-         dpsidx = new double[nVar];
-         rex = new double[nVar];
-         rey = new double[nCon];
-         relam = new double[nCon];
-         rexsi = new double[nVar];
-         reeta = new double[nVar];
-         remu = new double[nCon];
-         res = new double[nCon];
-         residu1 = new double[nVar + nCon + 1];
-         residu2 = new double[3 * nCon + 2 * nVar + 1];
-         residu = new double[3 * nVar + 4 * nCon + 2];
-         GG = new double[nVar * nCon];
-         Puxinv = new double[nVar * nCon];
-         Qxlinv = new double[nVar * nCon];
-         delx = new double[nVar];
-         dely = new double[nCon];
-         dellam = new double[nCon];
-         dellamyi = new double[nCon];
-         diagx = new double[nVar];
-         diagxinv = new double[nVar];
-         diagy = new double[nCon];
-         diagyinv = new double[nCon];
-         diaglam = new double[nCon];
-         diaglamyi = new double[nCon];
-         diaglamyiinv = new double[nCon];
-         blam = new double[nCon];
-         bb = new double[nVar + 1];
-         Alam = new double[nCon * nCon];
-         AA = new double[(nVar + 1) * (nVar + 1)];
-         solut = new double[nVar + nCon + 1];
-         dlam = new double[nCon];
-         dx = new double[nVar];
-         dy = new double[nCon];
-         dxsi = new double[nVar];
-         deta = new double[nVar];
-         dmu = new double[nCon];
-         Axx = new double[nVar * nCon];
-         axz = new double[nVar];
-         ds = new double[nCon];
-         xx = new double[4 * nCon + 2 * nVar + 2];
-         dxx = new double[4 * nCon + 2 * nVar + 2];
-         stepxx = new double[4 * nCon + 2 * nVar + 2];
-         sum = 0;
-         sum1 = new double[nVar];
-         stepalfa = new double[nVar];
-         stepbeta = new double[nVar];
-         xold = new double[nVar];
-         yold = new double[nCon];
-         lamold = new double[nCon];
-         xsiold = new double[nVar];
-         etaold = new double[nVar];
-         muold = new double[nCon];
-         sold = new double[nCon];
+      //Allocate all subproblem variables
+      epsi = 1.0;
+      machineEpsilon = 1e-10;
+      epsvecn = new double[nVar];
+      epsvecm = new double[nCon];
+      x = new double[nVar];
+      y = new double[nCon];
+      ittt = itto = itera = 0;
+      ux1 = new double[nVar];
+      ux2 = new double[nVar];
+      ux3 = new double[nVar];
+      xl1 = new double[nVar];
+      xl2 = new double[nVar];
+      xl3 = new double[nVar];
+      uxinv1 = new double[nVar];
+      xlinv1 = new double[nVar];
+      plam = new double[nVar];
+      qlam = new double[nVar];
+      gvec = new double[nCon];
+      dpsidx = new double[nVar];
+      rex = new double[nVar];
+      rey = new double[nCon];
+      relam = new double[nCon];
+      rexsi = new double[nVar];
+      reeta = new double[nVar];
+      remu = new double[nCon];
+      res = new double[nCon];
+      residu1 = new double[nVar + nCon + 1];
+      residu2 = new double[3 * nCon + 2 * nVar + 1];
+      residu = new double[3 * nVar + 4 * nCon + 2];
+      GG = new double[nVar * nCon];
+      Puxinv = new double[nVar * nCon];
+      Qxlinv = new double[nVar * nCon];
+      delx = new double[nVar];
+      dely = new double[nCon];
+      dellam = new double[nCon];
+      dellamyi = new double[nCon];
+      diagx = new double[nVar];
+      diagxinv = new double[nVar];
+      diagy = new double[nCon];
+      diagyinv = new double[nCon];
+      diaglam = new double[nCon];
+      diaglamyi = new double[nCon];
+      diaglamyiinv = new double[nCon];
+      blam = new double[nCon];
+      bb = new double[nVar + 1];
+      bb1 = new double[nCon + 1];
+      Alam = new double[nCon * nCon];
+      AA = new double[(nVar + 1) * (nVar + 1)];
+      AA1 = new double[(nCon + 1) * (nCon + 1)];
+      solut = new double[nVar + nCon + 1];
+      dlam = new double[nCon];
+      dx = new double[nVar];
+      dy = new double[nCon];
+      dxsi = new double[nVar];
+      deta = new double[nVar];
+      dmu = new double[nCon];
+      Axx = new double[nVar * nCon];
+      axz = new double[nVar];
+      ds = new double[nCon];
+      xx = new double[4 * nCon + 2 * nVar + 2];
+      dxx = new double[4 * nCon + 2 * nVar + 2];
+      stepxx = new double[4 * nCon + 2 * nVar + 2];
+      sum = 0;
+      sum1 = new double[nVar];
+      stepalfa = new double[nVar];
+      stepbeta = new double[nVar];
+      xold = new double[nVar];
+      yold = new double[nCon];
+      lamold = new double[nCon];
+      xsiold = new double[nVar];
+      etaold = new double[nVar];
+      muold = new double[nCon];
+      sold = new double[nCon];
          
    }
 
@@ -291,8 +293,10 @@ public:
       delete[] diaglamyiinv;
       delete[] blam;
       delete[] bb;
+      delete[] bb1;
       delete[] Alam;
       delete[] AA;
+      delete[] AA1;
       delete[] solut;
       delete[] dlam;
       delete[] dx;
@@ -373,7 +377,7 @@ public:
          c[i] = 1000.0;
          d[i] = 1.0;
       }
-      double a0 = 1.0;
+      a0 = 1.0;
       if (!isInitialized)
       {
          mfem::mfem_error("MMA::initialize() member data not initialized, call setGlobals first");
