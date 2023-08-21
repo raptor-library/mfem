@@ -303,6 +303,8 @@ int main(int argc, char *argv[])
          paraview_dc.RegisterField("design",&desingVarVec);
          mfem::ParGridFunction objGradGF(&desFESpace_scalar_H1); objGradGF = objgrad;
          paraview_dc.RegisterField("ObjGrad",&objGradGF);
+         mfem::ParGridFunction ConstraintGF(&desFESpace_scalar_H1); ConstraintGF = volgrad;
+         paraview_dc.RegisterField("Constraint",&ConstraintGF);
          paraview_dc.RegisterField("Temp",&TempGF);
          paraview_dc.Save();         
          
@@ -553,25 +555,42 @@ int main(int argc, char *argv[])
          // MMA Routine
 
          // impose desing variable bounds - set xxmin and xxmax
-         xxmin=desingVarVec; xxmin-=max_ch;
-         xxmax=desingVarVec; xxmax+=max_ch;
+         //xxmin=desingVarVec; xxmin-=max_ch;
+         //xxmax=desingVarVec; xxmax+=max_ch;
          for(int li=0;li<xxmin.Size();li++)
          {
-            if(xxmin[li]<0.1)
-            {
-               xxmin[li]=0.1;
-            }
-            if(xxmax[li]>0.45)
-            {
-               xxmax[li]=0.45;
-            }
+            xxmin[li]=0.1;
+            xxmax[li]=0.45;
          }
          double con=vol/maxVolAllowed-1;                                      // V/V_max -1
          volgrad /= maxVolAllowed;
          //mma->mmasub(nVar,nCon,i,desingVarVec,xxmin,xxmax,objgrad,&con,&volgrad,xxmin,xxmax);
-
+         /*
+         int nVar = desingVarVec.Size();
+         double* xval = desingVarVec.GetData();
+         double* xmin = xxmin.GetData();
+         double* xmax = xxmax.GetData();
+         double* fval = &ThermalCompliance;
+         double* dfdx = objgrad.GetData();
+         double* gx = &con;
+         double* dgdx = volgrad.GetData();
+         */
+         printf("Updating...\n");
          MMAmain.Update(desingVarVec.Size(), 1, i, desingVarVec.GetData(), xxmin.GetData(), xxmax.GetData(), &ThermalCompliance, objgrad.GetData(), &con, volgrad.GetData());
+         //MMAmain.Update(nVar, 1, i, xval, xmin, xmax, fval, dfdx, gx, dgdx);
 
+{
+         mfem::ParaViewDataCollection paraview_dc2("topOptAft", pmesh);
+         paraview_dc2.SetPrefixPath("ParaView");
+         paraview_dc2.SetLevelsOfDetail(order);
+         paraview_dc2.SetDataFormat(mfem::VTKFormat::BINARY);
+         paraview_dc2.SetHighOrderOutput(true);
+
+         paraview_dc2.SetCycle(i);
+         paraview_dc2.SetTime(i*1.0);
+         paraview_dc2.RegisterField("design",&desingVarVec);         
+         paraview_dc2.Save();     
+}
          std::string tDesingName = "DesingVarVec";
          desingVarVec.Save( tDesingName.c_str() );
 

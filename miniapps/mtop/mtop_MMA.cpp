@@ -52,8 +52,19 @@ namespace mma
 void MMA::Update(int nVar, int nCon, int iter, double* xval, double* xmin,
                  double* xmax, double* fval, double* dfdx, double* gx, double* dgdx)
 {
+   printf("%d, ", nVar);
+   printf("xval = [%f %f], ", xval[0], xval[1]);
+   printf("xmin = [%f %f], ", xmin[0], xmin[1]);
+   printf("xmax = [%f %f], ", xmax[0], xmax[1]);
+   printf("fval = %f, ", fval[0]);
+   printf("dfdx = [%f %f], ", dfdx[0], dfdx[1]);
+   printf("gx = %f, ", gx[0]);
+   printf("dgdx = [%f %f], ", dgdx[0], dgdx[1]);
    mmasub(nVar, nCon, iter, xval, xmin, xmax, fval, dfdx, gx, dgdx);
    kktcheck(nVar, nCon, xmma, ymma, xmin, xmax, dfdx, gx, dgdx);
+   printf("New design found: x = [%f, %f]", xmma[0], xmma[1]);
+   printf("KKT-Norm = %f", kktnorm);
+
 }
 
 void MMA::mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
@@ -216,9 +227,10 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
       s[i] = 1;
    }
 
-
+   //for (int Ik = 0; true; Ik++)
    while (epsi > epsimin)
    {
+
       rez = a0 - zet;
       for (int i = 0; i < nVar; i++)
       {
@@ -404,29 +416,22 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
             }
             AA[4 * nCon] = -zet / z;
             // ----------------------------------------------------------------------------
-            //solut = AA\bb --> solve linear system of equations using Gaussian elimination
-            for (int k = 0; k < (nVar + 1) -1; k++)
+            //solut = AA\bb --> solve linear system of equations using LAPACK
+            int info;
+            int nLAP = nVar + 1;
+            int nrhs = 1;
+            int lda = nLAP;
+            int ldb = nLAP;
+            int* ipiv = new int[nLAP];
+            dgesv_(&nLAP, &nrhs, AA, &lda, ipiv, bb, &ldb, &info);
+            delete[] ipiv;
+            for (int i = 0; i < (nVar + 1); i++)
             {
-               for (int i = k + 1; i < (nVar + 1); i++)
+               if (std::fabs(bb[i]) <= machineEpsilon || std::isnan(bb[i]))
                {
-                  double fac = AA[i * (nVar + 1) + k] / AA[k * (nVar + 1) + k];
-                  for (int j = k + 1; j < (nVar + 1); j++)
-                  {
-                     AA[i * (nVar + 1) + j] -= fac * AA[k * (nVar + 1) + j];
-                  }
-                  bb[i] -= fac * bb[k];
+                  bb[i] = machineEpsilon;
                }
-            }
-            // Back substitution
-            solut[nVar] = bb[nVar] / AA[nVar * (nVar + 1) + nVar];
-            for (int i = (nVar + 1) - 2; i >= 0; i--)
-            {
-               sum = bb[i];
-               for (int j = i + 1; j < (nVar + 1); j++)
-               {
-                  sum -= AA[i * (nVar + 1) + j] * solut[j];
-               }
-               solut[i] = sum / AA[i * (nVar + 1) + i];
+               solut[i] = bb[i];
             }
             // ----------------------------------------------------------------------------
 
@@ -549,6 +554,7 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
                   bb[i] = machineEpsilon;
                }
                solut[i] = bb[i];
+               printf(" %f ", solut[i]);
             }
             //#else
             //solut = AA\bb --> solve linear system of equations using Gaussian elimination

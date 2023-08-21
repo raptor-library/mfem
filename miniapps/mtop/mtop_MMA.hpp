@@ -11,7 +11,7 @@ class MMA
 {
 private:
    // Local vectors
-   double *a, *c, *d;
+   double *a = nullptr, *c = nullptr, *d;
    double a0, zet, zetmma;
    int z;
 
@@ -71,7 +71,6 @@ private:
       beta = new double[nVar];
       z = zet = 1.0;
       kktnorm = 10;
-      printf("Initialized ");
 
       isInitialized = true;
    }
@@ -170,21 +169,25 @@ private:
          etaold = new double[nVar];
          muold = new double[nCon];
          sold = new double[nCon];
+         
+   }
+
+   void sanityCheck()
+   {
+      //isFinite
+
+      //mfem_error(a == nullptr, "a is nullprt");
    }
 
 public:
    // Construct using defaults subproblem penalization
-   MMA(int nVar, int nCon, int iter)
+   MMA(int nVar, int nCon, int iter) : a(NULL)
    {
-      printf("0 ");
+      
       this->setGlobals(nVar, nCon);
-      printf("1 ");
       this->setMMA(nVar, nCon);
-      printf("2 ");
       this->setSubProb(nVar, nCon);
-      printf("3 ");
       this->initializeGlobals(nVar, nCon, iter);
-      printf("4\n");
    }
 
    //MMA(Comm, int nVar, int nCon, int iter)
