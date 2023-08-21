@@ -14,6 +14,7 @@
 
 #include "globals.hpp"
 #include "mem_manager.hpp"
+#include <string>
 
 namespace mfem
 {
@@ -143,9 +144,6 @@ private:
    /// Current device MemoryClass.
    MemoryClass device_mem_class = MemoryClass::HOST;
 
-   /// Device option specified as <DEVICE>:<OPTION>.
-   char *device_option = NULL;
-
    // Delete copy constructor and copy assignment.
    Device(Device const &) = delete;
    void operator=(Device const &) = delete;
@@ -154,10 +152,10 @@ private:
    static Device &Get() { return device_singleton; }
 
    /// Setup switcher based on configuration settings.
-   void Setup(const int device_id = 0);
+   void Setup(const std::string &device_option, const int device_id);
 
    /// Configure host/device MemoryType/MemoryClass.
-   void UpdateMemoryTypeAndClass();
+   void UpdateMemoryTypeAndClass(const std::string &device_option);
 
    /// Configure the backends to include @a b.
    void MarkBackend(Backend::Id b) { backends |= b; }
