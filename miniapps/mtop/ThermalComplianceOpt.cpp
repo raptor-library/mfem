@@ -232,6 +232,11 @@ int main(int argc, char *argv[])
       // Set Up MMA
       int nVar = desingVarVec.Size();
       MMA MMAmain(nVar, 1, 0);
+      for(int li=0;li<desingVarVec.Size();li++)
+      {
+         xxmin[li]=0.1;
+         xxmax[li]=0.45;
+      }
 
       //--------------------------------------------------------------------------------
       std::cout<<"opt iter"<<std::endl;
@@ -553,15 +558,7 @@ int main(int argc, char *argv[])
          }
 
          // MMA Routine
-
-         // impose desing variable bounds - set xxmin and xxmax
-         //xxmin=desingVarVec; xxmin-=max_ch;
-         //xxmax=desingVarVec; xxmax+=max_ch;
-         for(int li=0;li<xxmin.Size();li++)
-         {
-            xxmin[li]=0.1;
-            xxmax[li]=0.45;
-         }
+         
          double con=vol/maxVolAllowed-1;                                      // V/V_max -1
          volgrad /= maxVolAllowed;
          //mma->mmasub(nVar,nCon,i,desingVarVec,xxmin,xxmax,objgrad,&con,&volgrad,xxmin,xxmax);

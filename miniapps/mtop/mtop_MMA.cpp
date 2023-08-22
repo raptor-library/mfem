@@ -191,6 +191,9 @@ void MMA::mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
       xo2[i] = xo1[i];
       xo1[i] = xval[i];
       xval[i] = xmma[i];
+
+      xmin[i] = low[i];
+      xmax[i] = upp[i];
    }
 }
 
