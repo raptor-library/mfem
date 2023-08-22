@@ -234,8 +234,8 @@ int main(int argc, char *argv[])
       MMA MMAmain(nVar, 1, 0);
       for(int li=0;li<desingVarVec.Size();li++)
       {
-         xxmin[li]=0.1;
-         xxmax[li]=0.45;
+         xxmin[li]=1e-3;
+         xxmax[li]=1.0;
       }
 
       //--------------------------------------------------------------------------------
