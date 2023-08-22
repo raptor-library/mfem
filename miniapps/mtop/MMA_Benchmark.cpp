@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
    double* xmax = new double[nVar];
    // Simulation parameters
    int iter = 0;
-   int maxiter = 1;
+   int maxiter = 4;
    int restart = maxiter + 1;
    double norm2 = 0.0;
    double normInf = 0.0;

@@ -61,8 +61,8 @@ void MMA::Update(int nVar, int nCon, int iter, double* xval, double* xmin,
    printf("gx = %f, ", gx[0]);
    printf("dgdx = [%f %f], ", dgdx[0], dgdx[1]);
    mmasub(nVar, nCon, iter, xval, xmin, xmax, fval, dfdx, gx, dgdx);
-   kktcheck(nVar, nCon, xmma, ymma, xmin, xmax, dfdx, gx, dgdx);
-   printf("New design found: x = [%f, %f]", xmma[0], xmma[1]);
+   kktcheck(nVar, nCon, xval, ymma, xmin, xmax, dfdx, gx, dgdx);
+   printf("New design found: x = [%f, %f]", xval[0], xval[1]);
    printf("KKT-Norm = %f", kktnorm);
 
 }
@@ -148,8 +148,15 @@ void MMA::mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
 
       // Calculations of p0, q0, P, Q, and b
       ux1[i] = upp[i] - xval[i];
+      if (std::fabs(ux1[i]) <= machineEpsilon)
+      {
+         ux1[i] = machineEpsilon;
+      }
       xl1[i] = xval[i] - low[i];
-
+      if (std::fabs(xl1[i]) <= machineEpsilon)
+      {
+         xl1[i] = machineEpsilon;
+      }
       p0[i] = std::max(dfdx[i], 0.0);
       q0[i] = std::max(-dfdx[i], 0.0);
       pq0[i] = 0.001 * (p0[i] + q0[i]) + raa0 / xmami[i];
@@ -191,9 +198,6 @@ void MMA::mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
       xo2[i] = xo1[i];
       xo1[i] = xval[i];
       xval[i] = xmma[i];
-
-      xmin[i] = low[i];
-      xmax[i] = upp[i];
    }
 }
 
@@ -248,10 +252,10 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
          {
             xl1[i] = machineEpsilon;
          }
-         ux2[i] = ux1[i]*ux1[i];
-         xl2[i] = xl1[i]*xl1[i];
-         uxinv1[i] = 1.0 / ux1[i];
-         xlinv1[i] = 1.0 / xl1[i];
+         //ux2[i] = ux1[i]*ux1[i];
+         //xl2[i] = xl1[i]*xl1[i];
+         //uxinv1[i] = 1.0 / ux1[i];
+         //xlinv1[i] = 1.0 / xl1[i];
 
          // plam = P' * lam, qlam = Q' * lam
          plam[i] = p0[i];
@@ -261,7 +265,8 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
             plam[i] += P[j * nVar + i] * lam[j];
             qlam[i] += Q[j * nVar + i] * lam[j];
          }
-         dpsidx[i] = plam[i] * uxinv1[i] * uxinv1[i] - qlam[i] * xlinv1[i] * xlinv1[i];
+         // -------------------- left off here ---------------------------------------
+         dpsidx[i] = plam[i] / (ux1[i] * ux1[i]) - qlam[i] / (xl1[i] * xl1[i]);
          rex[i] = dpsidx[i] - xsi[i] + eta[i];
          rez -= a[i] * lam[i];
          rexsi[i] = xsi[i] * (x[i] - alfa[i]) - epsvecn[i];
@@ -655,14 +660,12 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
          dxx[3 * nCon + 2 * nVar + 1] = dzet;
          for (int i = 0; i < nVar; i++)
          {
-            dxsi[i] = -xsi[i] + epsvecn[i] / (x[i] - alfa[i]) - (xsi[i] * dx[i]) /
-                      (x[i] - alfa[i]);
+            dxsi[i] = -xsi[i] + epsvecn[i] / (x[i] - alfa[i]) - (xsi[i] * dx[i]) / (x[i] - alfa[i]);
             if (std::fabs(dxsi[i]) <= machineEpsilon || std::isnan(dxsi[i]))
             {
                dxsi[i] = machineEpsilon;
             }
-            deta[i] = -eta[i] + epsvecn[i] / (beta[i] - x[i]) + (eta[i] * dx[i]) /
-                      (beta[i] - x[i]);
+            deta[i] = -eta[i] + epsvecn[i] / (beta[i] - x[i]) + (eta[i] * dx[i]) / (beta[i] - x[i]);
             if (std::fabs(deta[i]) <= machineEpsilon || std::isnan(deta[i]))
             {
                deta[i] = machineEpsilon;
@@ -872,6 +875,19 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
 
 void MMA::kktcheck(int nVar, int nCon, double* x, double* y, double* xmin, double* xmax, double* dfdx, double* gx, double* dgdx)
 {
+   std::ofstream kkt;
+   kkt.open("KKT.dat", std::ios::app);
+
+   for (int i = 0; i < nVar; i++)
+   {
+      kkt << x[i] << " " << xsi[i] << " " << eta[i] << " " << dfdx[i] << " " << xmin[i] << " " << xmax[i] << "\n";
+   }
+   for (int i = 0; i < nCon; i++)
+   {
+      kkt << y[i] << " " << lam[i] << " " << mu[i] << " " << s[i] << " " << gx[i] << "\n";
+   }
+   
+   
    for (int i = 0; i < nVar; i++)
    {
       sum1[i] = 0.0;
@@ -883,7 +899,7 @@ void MMA::kktcheck(int nVar, int nCon, double* x, double* y, double* xmin, doubl
    for (int i = 0; i < nVar; i++)
    {
       rex[i] = dfdx[i] + sum1[i] - xsi[i] + eta[i];
-      rexsi[i] = xsi[i] * (x[i] - xmin[i]);
+      rexsi[i] = xsi[i] * (x[i] - xmin[i]);      
       reeta[i] = eta[i] * (xmax[i] - x[i]);
    }
    for (int i = 0; i < nCon; i++)
@@ -939,6 +955,8 @@ void MMA::kktcheck(int nVar, int nCon, double* x, double* y, double* xmin, doubl
    // Norm of the residual
    residunorm = std::sqrt(residunorm);
    kktnorm = residunorm;
+
+   kkt.close();
 }
 
 
