@@ -12,14 +12,13 @@ class MMA
 private:
    // Local vectors
    double *a = nullptr, *c = nullptr, *d;
-   double a0, zet, zetmma;
-   int z;
+   double a0, zet, zetmma, z, zmma;
 
    // Lagrange multipliers:
    double *lam, *xsi, *eta, *mu, *s;
 
    // Global: Asymptotes, bounds, objective approx., constraint approx.
-   double *low, *upp, *alfa, *beta, *p0, *q0, *P, *Q, *xmma, *ymma, *zmma, *lamma, *xsimma, *etamma, *mumma, *smma;
+   double *low, *upp, *alfa, *beta, *p0, *q0, *P, *Q, *xmma, *ymma, *lamma, *xsimma, *etamma, *mumma, *smma;
 
    // Global: MMA-specific
    double epsimin, raa0, move, albefa, asyinit, asyincr, asydecr, xmamieps, lowmin, lowmax, uppmin, uppmax, zz;
@@ -28,10 +27,9 @@ private:
    // Global: Subproblem
    int ittt, itto, itera;
    double epsi, machineEpsilon, rez, rezet, delz, dz, dzet, azz, stmxx, stmalfa, stmbeta, stmalbe, sum, stmalbexx, stminv, steg, zold, zetold, residunorm, residumax, resinew;
-   double *sum1, *epsvecn, *epsvecm, *x, *y, *ux1, *ux2, *ux3, *xl1, *xl2, *xl3, *uxinv1, *xlinv1, *plam, *qlam, *gvec, *dpsidx, *rex, *rey, *relam,
-          *rexsi, *reeta, *remu, *res, *residu1, *residu2, *residu, *GG, *Puxinv, *Qxlinv, *delx, *dely, *dellam, *dellamyi, *diagx, *diagxinv,
-          *diagy, *diagyinv, *diaglam, *diaglamyi, *diaglamyiinv, *blam, *bb, *bb1, *Alam, *AA, *AA1, *solut, *dlam, *dx, *dy, *dxsi, *deta, *dmu, *Axx,
-          *axz, *ds, *xx, *dxx, *stepxx, *stepalfa, *stepbeta, *xold, *yold, *lamold, *xsiold, *etaold, *muold, *sold;
+   double *sum1, *epsvecn, *epsvecm, *x, *y, *ux1, *xl1, *plam, *qlam, *gvec, *dpsidx, *rex, *rey, *relam, *rexsi, *reeta, *remu, *res, *residu1, *residu2, *residu, *GG, 
+          *Puxinv, *Qxlinv, *delx, *dely, *dellam, *dellamyi, *diagx, *diagy, *diaglam, *diaglamyi, *blam, *bb, *bb1, *Alam, *AA, *AA1, *solut, *dlam, *dx, *dy, *dxsi, *deta, 
+          *dmu, *Axx, *axz, *ds, *xx, *dxx, *stepxx, *stepalfa, *stepbeta, *xold, *yold, *lamold, *xsiold, *etaold, *muold, *sold;
 
    // Global: Old design variables
    double *xo1, *xo2;
@@ -52,7 +50,6 @@ private:
       a = new double[nCon];
       xmma = new double[nVar];
       ymma = new double[nCon];
-      zmma = new double[nCon];
       lam = new double[nCon];
       xsi = new double[nVar];
       eta = new double[nVar];
@@ -106,13 +103,7 @@ private:
       y = new double[nCon];
       ittt = itto = itera = 0;
       ux1 = new double[nVar];
-      ux2 = new double[nVar];
-      ux3 = new double[nVar];
       xl1 = new double[nVar];
-      xl2 = new double[nVar];
-      xl3 = new double[nVar];
-      uxinv1 = new double[nVar];
-      xlinv1 = new double[nVar];
       plam = new double[nVar];
       qlam = new double[nVar];
       gvec = new double[nCon];
@@ -135,12 +126,9 @@ private:
       dellam = new double[nCon];
       dellamyi = new double[nCon];
       diagx = new double[nVar];
-      diagxinv = new double[nVar];
       diagy = new double[nCon];
-      diagyinv = new double[nCon];
       diaglam = new double[nCon];
       diaglamyi = new double[nCon];
-      diaglamyiinv = new double[nCon];
       blam = new double[nCon];
       bb = new double[nVar + 1];
       bb1 = new double[nCon + 1];
@@ -171,7 +159,6 @@ private:
       etaold = new double[nVar];
       muold = new double[nCon];
       sold = new double[nCon];
-         
    }
 
    void sanityCheck()
@@ -218,7 +205,6 @@ public:
       delete[] a;
       delete[] xmma;
       delete[] ymma;
-      delete[] zmma;
       delete[] lam;
       delete[] xsi;
       delete[] eta;
@@ -256,13 +242,7 @@ public:
       delete[] x;
       delete[] y;
       delete[] ux1;
-      delete[] ux2;
-      delete[] ux3;
       delete[] xl1;
-      delete[] xl2;
-      delete[] xl3;
-      delete[] uxinv1;
-      delete[] xlinv1;
       delete[] plam;
       delete[] qlam;
       delete[] gvec;
@@ -285,12 +265,9 @@ public:
       delete[] dellam;
       delete[] dellamyi;
       delete[] diagx;
-      delete[] diagxinv;
       delete[] diagy;
-      delete[] diagyinv;
       delete[] diaglam;
       delete[] diaglamyi;
-      delete[] diaglamyiinv;
       delete[] blam;
       delete[] bb;
       delete[] bb1;

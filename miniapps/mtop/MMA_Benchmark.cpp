@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-// The optimizaiton problem
+// The optimization problem
 void Rosenbrock(double* xval, double a, double b, double* fval, double* dfdx,
                 double* gx, double* dgdx)
 {

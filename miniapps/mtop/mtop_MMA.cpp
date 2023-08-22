@@ -52,18 +52,16 @@ namespace mma
 void MMA::Update(int nVar, int nCon, int iter, double* xval, double* xmin,
                  double* xmax, double* fval, double* dfdx, double* gx, double* dgdx)
 {
-   printf("%d, ", nVar);
-   printf("xval = [%f %f], ", xval[0], xval[1]);
-   printf("xmin = [%f %f], ", xmin[0], xmin[1]);
-   printf("xmax = [%f %f], ", xmax[0], xmax[1]);
-   printf("fval = %f, ", fval[0]);
-   printf("dfdx = [%f %f], ", dfdx[0], dfdx[1]);
-   printf("gx = %f, ", gx[0]);
-   printf("dgdx = [%f %f], ", dgdx[0], dgdx[1]);
+   //printf("%d, ", nVar);
+   //printf("xval = [%f %f], ", xval[0], xval[1]);
+   //printf("fval = %f, ", fval[0]);
+   //printf("dfdx = [%f %f], ", dfdx[0], dfdx[1]);
+   //printf("gx = %f, ", gx[0]);
+   //printf("dgdx = [%f %f], ", dgdx[0], dgdx[1]);
    mmasub(nVar, nCon, iter, xval, xmin, xmax, fval, dfdx, gx, dgdx);
-   kktcheck(nVar, nCon, xval, ymma, xmin, xmax, dfdx, gx, dgdx);
-   printf("New design found: x = [%f, %f]", xval[0], xval[1]);
-   printf("KKT-Norm = %f", kktnorm);
+   kktcheck(nVar, nCon, xval, y, xmin, xmax, dfdx, gx, dgdx);
+   printf("New design found: x = [%f, %f] ", xval[0], xval[1]);
+   printf("KKT-Norm = %f\n", kktnorm);
 
 }
 
@@ -148,12 +146,12 @@ void MMA::mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
 
       // Calculations of p0, q0, P, Q, and b
       ux1[i] = upp[i] - xval[i];
-      if (std::fabs(ux1[i]) <= machineEpsilon)
+      if (std::fabs(ux1[i]) <= machineEpsilon || ux1[i] == 0.0)
       {
          ux1[i] = machineEpsilon;
       }
       xl1[i] = xval[i] - low[i];
-      if (std::fabs(xl1[i]) <= machineEpsilon)
+      if (std::fabs(xl1[i]) <= machineEpsilon || xl1[i] == 0.0)
       {
          xl1[i] = machineEpsilon;
       }
@@ -197,7 +195,7 @@ void MMA::mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
    {
       xo2[i] = xo1[i];
       xo1[i] = xval[i];
-      xval[i] = xmma[i];
+      xval[i] = x[i];
    }
 }
 
@@ -210,7 +208,7 @@ void MMA::mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
  *           alfaj <=  xj <=  betaj,  yi >= 0,  z >= 0.
  *
  * Input: m, n, low, upp, alfa, beta, p0, q0, P, Q, a0, a, b.
- * Output: xmma, ymma, zmma, slack variables and Lagrange multiplers.
+ * Output: x, y, z, slack variables and Lagrange multiplers.
 */
 void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
 {
@@ -243,20 +241,29 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
       {
          epsvecn[i] = epsi;
          ux1[i] = upp[i] - x[i];
-         if (std::fabs(ux1[i]) <= machineEpsilon)
+         if (ux1[i] == 0)
          {
             ux1[i] = machineEpsilon;
          }
+         else
+         {
+            while (std::fabs(ux1[i]) <= machineEpsilon)
+            {
+               ux1[i] *= 10;
+            }
+         }
          xl1[i] = x[i] - low[i];
-         if (std::fabs(xl1[i]) <= machineEpsilon)
+         if (xl1[i] == 0)
          {
             xl1[i] = machineEpsilon;
          }
-         //ux2[i] = ux1[i]*ux1[i];
-         //xl2[i] = xl1[i]*xl1[i];
-         //uxinv1[i] = 1.0 / ux1[i];
-         //xlinv1[i] = 1.0 / xl1[i];
-
+         else
+         {
+            while (std::fabs(xl1[i]) <= machineEpsilon)
+            {
+               xl1[i] *= 10;
+            }
+         }
          // plam = P' * lam, qlam = Q' * lam
          plam[i] = p0[i];
          qlam[i] = q0[i];
@@ -265,19 +272,18 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
             plam[i] += P[j * nVar + i] * lam[j];
             qlam[i] += Q[j * nVar + i] * lam[j];
          }
-         // -------------------- left off here ---------------------------------------
          dpsidx[i] = plam[i] / (ux1[i] * ux1[i]) - qlam[i] / (xl1[i] * xl1[i]);
          rex[i] = dpsidx[i] - xsi[i] + eta[i];
          rez -= a[i] * lam[i];
          rexsi[i] = xsi[i] * (x[i] - alfa[i]) - epsvecn[i];
-         if (std::fabs(rexsi[i]) <= machineEpsilon)
+         if (std::fabs(x[i]-alfa[i]) == 0)
          {
-            rexsi[i] = machineEpsilon;
+            rexsi[i] = xsi[i] * machineEpsilon - epsvecn[i];
          }
          reeta[i] = eta[i] * (beta[i] - x[i]) - epsvecn[i];
-         if (std::fabs(reeta[i]) <= machineEpsilon)
+         if (std::fabs(beta[i] - x[i]) == 0)
          {
-            reeta[i] = machineEpsilon;
+            reeta[i] = eta[i] * machineEpsilon - epsvecn[i];;
          }
          residu1[i] = rex[i];
          residu2[nCon + i] = rexsi[i];
@@ -289,14 +295,12 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
          // gvec = P/ux + Q/xl
          for (int j = 0; j < nVar; j++)
          {
-            gvec[i] += P[i * nVar + j] * uxinv1[j] + Q[i * nVar + j] * xlinv1[j];
+            gvec[i] += P[i * nVar + j] / ux1[j] + Q[i * nVar + j] / xl1[j];
          }
          rey[i] = c[i] + d[i] * y[i] - mu[i] - lam[i];
          relam[i] = gvec[i] - a[i] * z - y[i] + s[i] - b[i];
          remu[i] = mu[i] * y[i] - epsvecm[i];
          res[i] = lam[i] * s[i] - epsvecm[i];
-
-
          residu2[i] = relam[i];
          residu1[nVar + i] = rey[i];
          residu2[nCon + 2 * nVar + i] = remu[i];
@@ -335,14 +339,29 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
          for (int i = 0; i < nVar; i++)
          {
             ux1[i] = upp[i] - x[i];
+            if (ux1[i] == 0)
+            {
+               ux1[i] = machineEpsilon;
+            }
+            else
+            {
+               while (std::fabs(ux1[i]) <= machineEpsilon)
+               {
+                  ux1[i] *= 10;
+               }
+            }
             xl1[i] = x[i] - low[i];
-            ux2[i] = ux1[i]*ux1[i];
-            xl2[i] = xl1[i]*xl1[i];
-            ux3[i] = ux2[i]*ux1[i];
-            xl3[i] = xl2[i]*xl1[i];
-            uxinv1[i] = 1.0 / ux1[i];
-            xlinv1[i] = 1.0 / xl1[i];
-
+            if (xl1[i] == 0)
+            {
+               xl1[i] = machineEpsilon;
+            }
+            else
+            {
+               while (std::fabs(xl1[i]) <= machineEpsilon)
+               {
+                  xl1[i] *= 10;
+               }
+            }
             // plam = P' * lam, qlam = Q' * lam
             plam[i] = p0[i];
             qlam[i] = q0[i];
@@ -351,32 +370,43 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
                plam[i] += P[j * nVar + i] * lam[j];
                qlam[i] += Q[j * nVar + i] * lam[j];
             }
-            dpsidx[i] = plam[i] * uxinv1[i] * uxinv1[i] - qlam[i] * xlinv1[i] * xlinv1[i];
-            delx[i] = dpsidx[i] - epsvecn[i] / (x[i] - alfa[i]) + epsvecn[i] /
-                      (beta[i] - x[i]);
-            if (std::fabs(delx[i]) <= machineEpsilon)
+            dpsidx[i] = plam[i] / (ux1[i] * ux1[i]) - qlam[i] / (xl1[i] * xl1[i]);
+            // NaN-Avoidance
+            if (std::fabs(x[i] - alfa[i]) < machineEpsilon)
             {
-               delx[i] = machineEpsilon;
+               if (std::fabs(beta[i] - x[i]) < machineEpsilon)
+               {
+                  delx[i] = dpsidx[i];
+                  diagx[i] = 2 * (plam[i] / (ux1[i] * ux1[i] * ux1[i]) + qlam[i] / (xl1[i] * xl1[i] * xl1[i])) + xsi[i] / machineEpsilon + eta[i] / machineEpsilon;
+               }
+               else
+               {
+                  delx[i] = dpsidx[i] - epsvecn[i] / machineEpsilon + epsvecn[i] / (beta[i] - x[i]);
+                  diagx[i] = 2 * (plam[i] / (ux1[i] * ux1[i] * ux1[i]) + qlam[i] / (xl1[i] * xl1[i] * xl1[i])) + xsi[i] / (x[i] - alfa[i]) + eta[i] / (beta[i] - x[i]);
+               }
             }
-            diagx[i] = 2 * (plam[i] / ux3[i] + qlam[i] / xl3[i]) + xsi[i] /
-                       (x[i] - alfa[i]) + eta[i] / (beta[i] - x[i]);
-            if (std::fabs(diagx[i]) <= machineEpsilon)
+            else if (std::fabs(beta[i] - x[i]) < machineEpsilon)
             {
-               diagx[i] = machineEpsilon;
+               delx[i] = dpsidx[i] - epsvecn[i] / (x[i] - alfa[i]) + epsvecn[i] / machineEpsilon;
+               diagx[i] = 2 * (plam[i] / (ux1[i] * ux1[i] * ux1[i]) + qlam[i] / (xl1[i] * xl1[i] * xl1[i])) + xsi[i] / (x[i] - alfa[i]) + eta[i] / machineEpsilon;
             }
-            diagxinv[i] = 1.0 / diagx[i];
+            else
+            {
+               delx[i] = dpsidx[i] - epsvecn[i] / (x[i] - alfa[i]) + epsvecn[i] / (beta[i] - x[i]);
+               diagx[i] = 2 * (plam[i] / (ux1[i] * ux1[i] * ux1[i]) + qlam[i] / (xl1[i] * xl1[i] * xl1[i])) + xsi[i] / (x[i] - alfa[i]) + eta[i] / (beta[i] - x[i]);
+            }
          }
 
-         delz = a0 - epsi/z;
+         delz = a0 - epsi / z;
          for (int i = 0; i < nCon; i++)
          {
             gvec[i] = 0.0;
             // gvec = P/ux + Q/xl
             for (int j = 0; j < nVar; j++)
             {
-               gvec[i] += P[i * nVar + j] * uxinv1[j] + Q[i * nVar + j] * xlinv1[j];
-               Puxinv[i * nVar + j] = P[i * nVar + j] * uxinv1[j] * uxinv1[j];
-               Qxlinv[i * nVar + j] = Q[i * nVar + j] * xlinv1[j] * xlinv1[j];
+               gvec[i] += P[i * nVar + j] / ux1[j] + Q[i * nVar + j] / xl1[j];
+               Puxinv[i * nVar + j] = P[i * nVar + j] / (ux1[j] * ux1[j]);
+               Qxlinv[i * nVar + j] = Q[i * nVar + j] / (xl1[j] * xl1[j]);
 
                GG[i * nVar + j] = Puxinv[i * nVar + j] - Qxlinv[i * nVar + j];
             }
@@ -385,14 +415,13 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
             delz -= a[i] * lam[i];
             dellam[i] = gvec[i] - a[i] * z - y[i] - b[i] + epsvecm[i] / lam[i];
             diagy[i] = d[i] + mu[i] / y[i];
-            diagyinv[i] = 1.0 / diagy[i];
+            //diagyinv[i] = 1.0 / diagy[i];
             diaglam[i] = s[i] / lam[i];
-            diaglamyi[i] = diaglam[i] + diagyinv[i];
+            diaglamyi[i] = diaglam[i] + 1.0 / diagy[i];
          }
 
          if (nCon < nVar)
          {
-            //To-Do: Double check this in debug <---------------------------------------- !!!!!!!!!!!!
             // blam = dellam + dely./diagy - GG*(delx./diagx);
             // bb = [blam; delz];
             for (int j = 0; j < nCon; j++)
@@ -405,7 +434,7 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
                blam[j] = dellam[j] + dely[j] / diagy[j] - sum;
                bb1[j] = blam[j];
             }
-            bb1[nCon] = delz;
+            bb1[nCon] = delz;            
 
             // Alam = spdiags(diaglamyi,0,m,m) + GG*spdiags(diagxinv,0,n,n)*GG';
             for (int i = 0; i < nCon; i++)
@@ -443,7 +472,7 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
                AA1[nCon * nCon + i] = a[i];
                AA1[nCon * nCon + nCon + i] = a[i];
             }
-            AA1[nCon * nCon + nCon + nCon] = -zet / z;                   
+            AA1[nCon * nCon + nCon + nCon] = -zet / z;                              
 
             // ----------------------------------------------------------------------------
             //solut = AA1\bb1 --> solve linear system of equations using LAPACK
@@ -457,14 +486,9 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
             delete[] ipiv;
             for (int i = 0; i < (nCon + 1); i++)
             {
-               if (std::isnan(bb1[i]))
-               {
-                  bb1[i] = machineEpsilon;
-               }
                solut[i] = bb1[i];
             }
             // ----------------------------------------------------------------------------
-
             //dlam = solut(1:nCon);
             for (int i = 0; i < nCon; i++)
             {
@@ -479,11 +503,7 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
                {
                   sum += GG[j * nVar + i] * dlam[j];
                }
-               dx[i] = -sum / diagx[i] - delx[i] / diagx[i];
-               if (std::isnan(dx[i]))
-               {
-                  dx[i] = machineEpsilon;
-               }              
+               dx[i] = -sum / diagx[i] - delx[i] / diagx[i];           
             }
          }
          else
@@ -491,10 +511,10 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
             sum = 0.0;
             for (int i = 0; i < nCon; i++)
             {
-               diaglamyiinv[i] = 1.0 / diaglamyi[i];
-               dellamyi[i] = dellam[i] + dely[i] * diagyinv[i];
+               //diaglamyiinv[i] = 1.0 / diaglamyi[i];
+               dellamyi[i] = dellam[i] + dely[i] / diagy[i];
                // azz = zet/z + a'*(a./diaglamyi)
-               sum += a[i] * (a[i] * diaglamyiinv[i]);
+               sum += a[i] * (a[i] / diaglamyi[i]);
             }
             azz = zet / z + sum;
             // Axx = spdiags(diagx,0,nVar,nVar) + GG'*spdiags(diaglamyiinv,0,nCon,nCon)*GG;
@@ -505,13 +525,13 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
                // Axx =  GG'*spdiags(diaglamyiinv,0,nCon,nCon);
                for (int k = 0; k < nCon; k++)
                {
-                  Axx[i * nCon + k] = GG[k * nVar + i] * diaglamyiinv[k];
+                  Axx[i * nCon + k] = GG[k * nVar + i] / diaglamyi[k];
                }
                sum = 0.0;
                // axz = -GG'*(a./diaglamyi)
                for (int j = 0; j < nCon; j++)
                {
-                  sum -= GG[j * nVar + i] * (a[j] * diaglamyiinv[j]);
+                  sum -= GG[j * nVar + i] * (a[j] / diaglamyi[j]);
                }
                axz[i] = sum;
             }
@@ -560,18 +580,17 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
                sum = 0.0;
                for (int j = 0; j < nCon; j++)
                {
-                  sum += GG[j * nVar + i] * (dellamyi[j] * diaglamyiinv[j]);
+                  sum += GG[j * nVar + i] * (dellamyi[j] / diaglamyi[j]);
                }
                bb[i] = -(delx[i] + sum);
             }
             sum = 0.0;
             for (int i = 0; i < nCon; i++)
             {
-               sum += a[i] * (dellamyi[i] * diaglamyiinv[i]);
+               sum += a[i] * (dellamyi[i] / diaglamyi[i]);
             }
             bb[nVar] = -(delz - sum);
             // ----------------------------------------------------------------------------
-            //#ifdef MFEM_USE_LAPACK
             //solut = AA\bb --> solve linear system of equations using LAPACK
             int info;
             int nLAP = nVar + 1;
@@ -583,41 +602,8 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
             delete[] ipiv;
             for (int i = 0; i < (nVar + 1); i++)
             {
-               if (std::fabs(bb[i]) <= machineEpsilon || std::isnan(bb[i]))
-               {
-                  bb[i] = machineEpsilon;
-               }
                solut[i] = bb[i];
             }
-            //#else
-            //solut = AA\bb --> solve linear system of equations using Gaussian elimination
-            // may cause problems with sparse matrices
-            /*
-            for (int k = 0; k < (nVar + 1) - 1; k++)
-            {
-               for (int i = k + 1; i < (nVar + 1); i++)
-               {
-                  double fac = AA[i * (nVar + 1) + k] / AA[k * (nVar + 1) + k];
-                  for (int j = k + 1; j < (nVar + 1); j++)
-                  {
-                     AA[i * (nVar + 1) + j] -= fac * AA[k * (nVar + 1) + j];
-                  }
-                  bb[i] -= fac * bb[k];
-               }
-            }
-            // Back substitution
-            solut[nVar] = bb[nVar] / AA[nVar * (nVar + 1) + nVar];
-            for (int i = (nVar + 1) - 2; i >= 0; i--)
-            {
-               sum = bb[i];
-               for (int j = i + 1; j < (nVar + 1); j++)
-               {
-                  sum -= AA[i * (nVar + 1) + j] * solut[j];
-               }
-               solut[i] = sum / AA[i * (nVar + 1) + i];
-            }
-            #endif
-            */
             // ----------------------------------------------------------------------------
             //dx = solut(1:nVar);
             for (int i = 0; i < nVar; i++)
@@ -633,14 +619,13 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
                {
                   sum += GG[i * nVar + j] * dx[j];
                }
-               dlam[i] = sum * diaglamyiinv[i] - dz * (a[i] * diaglamyiinv[i]) + dellamyi[i] *
-                         diaglamyiinv[i];
+               dlam[i] = sum / diaglamyi[i] - dz * (a[i] / diaglamyi[i]) + dellamyi[i] / diaglamyi[i];
             }
          }
 
          for (int i = 0; i < nCon; i++)
          {
-            dy[i] = -dely[i] * diagyinv[i] + dlam[i] * diagyinv[i];
+            dy[i] = -dely[i] / diagy[i] + dlam[i] / diagy[i];
             dmu[i] = -mu[i] + epsvecm[i] / y[i] - (mu[i] * dy[i]) / y[i];
             ds[i] = -s[i] + epsvecm[i] / lam[i] - (s[i] * dlam[i]) / lam[i];
             // xx = [y z lam xsi eta mu zet s]
@@ -660,15 +645,29 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
          dxx[3 * nCon + 2 * nVar + 1] = dzet;
          for (int i = 0; i < nVar; i++)
          {
-            dxsi[i] = -xsi[i] + epsvecn[i] / (x[i] - alfa[i]) - (xsi[i] * dx[i]) / (x[i] - alfa[i]);
-            if (std::fabs(dxsi[i]) <= machineEpsilon || std::isnan(dxsi[i]))
+            // NaN-Avoidance
+            if (std::fabs(x[i] - alfa[i]) < machineEpsilon)
             {
-               dxsi[i] = machineEpsilon;
+               if (std::fabs(beta[i] - x[i]) < machineEpsilon)
+               {
+                  dxsi[i] = -xsi[i] + epsvecn[i] / machineEpsilon - (xsi[i] * dx[i]) / machineEpsilon;
+                  deta[i] = -eta[i] + epsvecn[i] / machineEpsilon + (eta[i] * dx[i]) / machineEpsilon;
+               }
+               else
+               {
+                  dxsi[i] = -xsi[i] + epsvecn[i] / machineEpsilon - (xsi[i] * dx[i]) / machineEpsilon;
+                  deta[i] = -eta[i] + epsvecn[i] / (beta[i] - x[i]) + (eta[i] * dx[i]) / (beta[i] - x[i]);
+               }
             }
-            deta[i] = -eta[i] + epsvecn[i] / (beta[i] - x[i]) + (eta[i] * dx[i]) / (beta[i] - x[i]);
-            if (std::fabs(deta[i]) <= machineEpsilon || std::isnan(deta[i]))
+            else if (std::fabs(beta[i] - x[i]) < machineEpsilon)
             {
-               deta[i] = machineEpsilon;
+               dxsi[i] = -xsi[i] + epsvecn[i] / (x[i] - alfa[i]) - (xsi[i] * dx[i]) / (x[i] - alfa[i]);
+               deta[i] = -eta[i] + epsvecn[i] / machineEpsilon + (eta[i] * dx[i]) / machineEpsilon;
+            }
+            else
+            {
+               dxsi[i] = -xsi[i] + epsvecn[i] / (x[i] - alfa[i]) - (xsi[i] * dx[i]) / (x[i] - alfa[i]);
+               deta[i] = -eta[i] + epsvecn[i] / (beta[i] - x[i]) + (eta[i] * dx[i]) / (beta[i] - x[i]);
             }
             xx[nCon + 1 + nCon + i] = xsi[i];
             xx[nCon + 1 + nCon + nVar + i] = eta[i];
@@ -690,12 +689,29 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
          stmbeta = 0.0;
          for (int i = 0; i < nVar; i++)
          {
-            stepalfa[i] = -1.01*dx[i] / (x[i] - alfa[i]);
+            
+            //NaN-Avoidance
+            if (std::fabs(x[i] - alfa[i]) < machineEpsilon)
+            {
+               stepalfa[i] = -1.01*dx[i] / machineEpsilon;
+            }
+            else 
+            {
+               stepalfa[i] = -1.01*dx[i] / (x[i] - alfa[i]);
+            }
+            if (std::fabs(beta[i] - x[i]) < machineEpsilon)
+            {
+               stepbeta[i] = 1.01*dx[i] / machineEpsilon;
+            }
+            else
+            {
+               stepbeta[i] = 1.01*dx[i] / (beta[i] - x[i]);
+            }
+            // --------------
             if (stepalfa[i] > stmalfa)
             {
                stmalfa = stepalfa[i];
             }
-            stepbeta[i] = 1.01*dx[i] / (beta[i] - x[i]);
             if (stepbeta[i] > stmbeta)
             {
                stmbeta = stepbeta[i];
@@ -731,7 +747,15 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
             for (int i = 0; i < nCon; ++i)
             {
                y[i] = yold[i] + steg * dy[i];
+               while (std::fabs(y[i]) < machineEpsilon)
+               {
+                  y[i] *= 10;
+               }
                lam[i] = lamold[i] + steg * dlam[i];
+               while (std::fabs(lam[i]) < machineEpsilon)
+               {
+                  lam[i] *= 10;
+               }
                mu[i] = muold[i] + steg * dmu[i];
                s[i] = sold[i] + steg * ds[i];
             }
@@ -745,22 +769,30 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
                {
                   eta[i] = machineEpsilon;
                }
-               
-
                ux1[i] = upp[i] - x[i];
-               xl1[i] = x[i] - low[i];
-               if (std::fabs(ux1[i]) <= machineEpsilon)
+               if (ux1[i] == 0)
                {
                   ux1[i] = machineEpsilon;
                }
-               if (std::fabs(xl1[i]) <= machineEpsilon)
+               else
+               {
+                  while (std::fabs(ux1[i]) <= machineEpsilon)
+                  {
+                     ux1[i] *= 10;
+                  }
+               }
+               xl1[i] = x[i] - low[i];
+               if (xl1[i] == 0)
                {
                   xl1[i] = machineEpsilon;
-               }               
-               ux2[i] = ux1[i] * ux1[i];
-               xl2[i] = xl1[i] * xl1[i];
-               uxinv1[i] = 1.0 / ux1[i];
-               xlinv1[i] = 1.0 / xl1[i];
+               }
+               else
+               {
+                  while (std::fabs(xl1[i]) <= machineEpsilon)
+                  {
+                     xl1[i] *= 10;
+                  }
+               }
                // plam & qlam
                plam[i] = p0[i];
                qlam[i] = q0[i];
@@ -769,29 +801,35 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
                   plam[i] += P[j * nVar + i] * lam[j];
                   qlam[i] += Q[j * nVar + i] * lam[j];
                }
-               dpsidx[i] = plam[i] * uxinv1[i] * uxinv1[i] - qlam[i] * xlinv1[i] * xlinv1[i];
-               if (std::fabs(dpsidx[i]) <= machineEpsilon || std::isnan(dpsidx[i]))
-               {
-                  dpsidx[i] = machineEpsilon;
-               }
+               dpsidx[i] = plam[i] / (ux1[i] * ux1[i]) - qlam[i] / (xl1[i] * xl1[i]);
                rex[i] = dpsidx[i] - xsi[i] + eta[i];
                rez -= a[i] * lam[i];
                rexsi[i] = xsi[i] * (x[i] - alfa[i]) - epsvecn[i];              
-               if (std::fabs(rexsi[i]) <= machineEpsilon)
+               if (std::fabs(x[i] - alfa[i]) < machineEpsilon || std::isnan(rexsi[i]))
                {
                   rexsi[i] = machineEpsilon;
                }
                reeta[i] = eta[i] * (beta[i] - x[i]) - epsvecn[i];
-               if (std::fabs(reeta[i]) <= machineEpsilon || std::isnan(reeta[i]))
+               if (std::fabs(beta[i] - x[i]) < machineEpsilon || std::isnan(reeta[i]))
                {
                   reeta[i] = machineEpsilon;
                }
-
                residu1[i] = rex[i];
                residu2[nCon + i] = rexsi[i];
                residu2[nCon + nVar + i] = reeta[i];
             }
             z = zold + steg * dz;
+            if (z == 0)
+            {
+               z = machineEpsilon;
+            }
+            else
+            {
+               while (std::fabs(z) <= machineEpsilon)
+               {
+                  z *= 10;
+               }
+            }
             zet = zetold + steg * dzet;
 
             // gvec = P/ux + Q/xl
@@ -800,7 +838,7 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
                gvec[i] = 0.0;
                for (int j = 0; j < nVar; j++)
                {
-                  gvec[i] += P[i * nVar + j] * uxinv1[j] + Q[i * nVar + j] * xlinv1[j];
+                  gvec[i] += P[i * nVar + j] / ux1[j] + Q[i * nVar + j] / xl1[j];
                }
                rey[i] = c[i] + d[i] * y[i] - mu[i] - lam[i];
                relam[i] = gvec[i] - a[i] * z - y[i] + s[i] - b[i];
@@ -852,24 +890,6 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
       }
       epsi = 0.1 * epsi;
    }
-
-   // Update new values
-   for (int i = 0; i < nVar; i++)
-   {
-      xmma[i] = x[i];
-      xsimma[i] = xsi[i];
-      etamma[i] = eta[i];
-   }
-   for (int i = 0; i < nCon; i++)
-   {
-      ymma[i] = y[i];
-      lamma[i] = lam[i];
-      mumma[i] = mu[i];
-      smma[i] = s[i];
-   }
-   *zmma = z;
-   zetmma = zet;
-
    //results.close();
 }
 
