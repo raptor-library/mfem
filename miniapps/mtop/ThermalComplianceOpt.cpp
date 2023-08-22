@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
    double vol; //volume
 
    double max_vol = 1.0;
-   double maxVolAllowed = max_vol*0.5;
+   double maxVolAllowed = max_vol*0.3;
 
    mfem::ParaViewDataCollection paraview_dc("TopOpt", pmesh);
    paraview_dc.SetPrefixPath("ParaView");
