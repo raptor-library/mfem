@@ -13,12 +13,13 @@ private:
    // Local vectors
    double *a = nullptr, *c = nullptr, *d;
    double a0, zet, zetmma, z, zmma;
+   int nCon, nVar;
 
    // Lagrange multipliers:
    double *lam, *xsi, *eta, *mu, *s;
 
    // Global: Asymptotes, bounds, objective approx., constraint approx.
-   double *low, *upp, *alfa, *beta, *p0, *q0, *P, *Q, *xmma, *ymma, *lamma, *xsimma, *etamma, *mumma, *smma;
+   double *xmin, *xmax, *low, *upp, *alfa, *beta, *p0, *q0, *P, *Q, *xmma, *ymma, *lamma, *xsimma, *etamma, *mumma, *smma;
 
    // Global: MMA-specific
    double epsimin, raa0, move, albefa, asyinit, asyincr, asydecr, xmamieps, lowmin, lowmax, uppmin, uppmax, zz;
@@ -41,6 +42,8 @@ private:
 
    void setGlobals(int nVar, int nCon)
    {
+      xmin = new double[nVar];
+      xmax = new double[nVar];
       low = new double[nVar];
       upp = new double[nVar];
       xo1 = new double[nVar];
@@ -170,13 +173,13 @@ private:
 
 public:
    // Construct using defaults subproblem penalization
-   MMA(int nVar, int nCon, int iter) : a(NULL)
+   MMA(int nVar, int nCon, int iter, double *xxmin, double *xxmax) : a(NULL)
    {
       
       this->setGlobals(nVar, nCon);
       this->setMMA(nVar, nCon);
       this->setSubProb(nVar, nCon);
-      this->initializeGlobals(nVar, nCon, iter);
+      this->initializeGlobals(nVar, nCon, iter, xxmin, xxmax);
    }
 
    //MMA(Comm, int nVar, int nCon, int iter)
@@ -196,6 +199,8 @@ public:
 
    void freeGlobals()
    {
+      delete[] xmin;
+      delete[] xmax;
       delete[] low;
       delete[] upp;
       delete[] xo1;
@@ -298,8 +303,13 @@ public:
       delete[] sold;
    }
 
-   void initializeGlobals(int nVar, int nCon, int iter)
+   void initializeGlobals(int nVariables, int nConstraints, int iter, double *xxmin, double *xxmax)
    {
+      nVar = nVariables;
+      nCon = nConstraints;
+      xmin = xxmin;
+      xmax = xxmax;
+
       if (iter == 0)
       {
          for (int i = 0; i < nVar; i++)
@@ -355,6 +365,7 @@ public:
          d[i] = 1.0;
       }
       a0 = 1.0;
+      
       if (!isInitialized)
       {
          mfem::mfem_error("MMA::initialize() member data not initialized, call setGlobals first");
@@ -364,17 +375,14 @@ public:
 
    }
 
-   void Update(int nVar, int nCon, int iter, double* xval, double* xmin,
-                 double* xmax, double* fval, double* dfdx, double* gx, double* dgdx);
+   void Update(int iter, double* xval, double* fval, double* dfdx, double* gx, double* dgdx);
 
    // Set and solve a subproblem: return new xval
-   void mmasub(int nVar, int nCon, int iter, double* xval, double* xmin, double* xmax, double* fval, double* dfdx, double* gx, double* dgdx);
+   void mmasub(int iter, double* xval, double* fval, double* dfdx, double* gx, double* dgdx);
 
-   void kktcheck(int nCon, int nVar, double* x, double* y, 
-                 double* xmin, double* xmax,
-                 double* dfdx, double* gx, double* dgdx);
+   void kktcheck(double* x, double* y, double* dfdx, double* gx, double* dgdx);
 
-   void subsolv(int nVar, int nCon, double epsimin, double* b);
+   void subsolv(double epsimin, double* b);
 
 
    // Options

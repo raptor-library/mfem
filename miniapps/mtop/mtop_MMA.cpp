@@ -49,24 +49,20 @@ namespace mma
 
 //MMA::MMA(MPI_Comm Comm,int n, int m, double * x, int sx) {}
 
-void MMA::Update(int nVar, int nCon, int iter, double* xval, double* xmin,
-                 double* xmax, double* fval, double* dfdx, double* gx, double* dgdx)
+void MMA::Update(int iter, double* xval, double* fval, double* dfdx, double* gx, double* dgdx)
 {
-   //printf("%d, ", nVar);
-   //printf("xval = [%f %f], ", xval[0], xval[1]);
    //printf("fval = %f, ", fval[0]);
    //printf("dfdx = [%f %f], ", dfdx[0], dfdx[1]);
    //printf("gx = %f, ", gx[0]);
-   //printf("dgdx = [%f %f], ", dgdx[0], dgdx[1]);
-   mmasub(nVar, nCon, iter, xval, xmin, xmax, fval, dfdx, gx, dgdx);
-   kktcheck(nVar, nCon, xval, y, xmin, xmax, dfdx, gx, dgdx);
-   printf("New design found: x = [%f, %f] ", xval[0], xval[1]);
-   printf("KKT-Norm = %f\n", kktnorm);
+   //printf("dgdx = [%f %f]\n", dgdx[0], dgdx[1]);
+   mmasub(iter, xval, fval, dfdx, gx, dgdx);
+   kktcheck(xval, y, dfdx, gx, dgdx);
+   printf("\nNew design found: x = [%f, %f] ", xval[0], xval[1]);
+   printf("KKT-Norm = %f\n\n", kktnorm);
 
 }
 
-void MMA::mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
-                 double* xmax, double* fval, double* dfdx, double* gx, double* dgdx)
+void MMA::mmasub(int iter, double* xval, double* fval, double* dfdx, double* gx, double* dgdx)
 {
    for (int i = 0; i < nVar; i++)
    {
@@ -188,7 +184,7 @@ void MMA::mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
       b[i] -= gx[i];
    }
 
-   subsolv(nVar, nCon, epsimin, b);
+   subsolv(epsimin, b);
 
    // Update design variables
    for (int i = 0; i < nVar; i++)
@@ -210,7 +206,7 @@ void MMA::mmasub(int nVar, int nCon, int iter, double* xval, double* xmin,
  * Input: m, n, low, upp, alfa, beta, p0, q0, P, Q, a0, a, b.
  * Output: x, y, z, slack variables and Lagrange multiplers.
 */
-void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
+void MMA::subsolv(double epsimin, double* b)
 {
    //std::ofstream results;
    //results.open("sub.dat", std::ios::app);
@@ -886,14 +882,14 @@ void MMA::subsolv(int nVar, int nCon, double epsimin, double* b)
 
       if (ittt > 198)
       {
-         //printf("Warning: Maximum number of iterations reached in subsolv.\n");
+         printf("Warning: Maximum number of iterations reached in subsolv.\n");
       }
       epsi = 0.1 * epsi;
    }
    //results.close();
 }
 
-void MMA::kktcheck(int nVar, int nCon, double* x, double* y, double* xmin, double* xmax, double* dfdx, double* gx, double* dgdx)
+void MMA::kktcheck(double* x, double* y, double* dfdx, double* gx, double* dgdx)
 {
    std::ofstream kkt;
    kkt.open("KKT.dat", std::ios::app);

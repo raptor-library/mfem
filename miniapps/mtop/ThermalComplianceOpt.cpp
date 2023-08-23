@@ -13,11 +13,11 @@ using namespace mma;
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI
-   int num_procs, myrank;
+   int num_procs, myrank = 0;
    mfem::MPI_Session mpi(argc, argv);
-   // MPI_Init(&argc, &argv);
-   // MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   // MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+   //MPI_Init(&argc, &argv);
+   //MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+   //MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
    // Define Caliper ConfigManager
 #ifdef MFEM_USE_CALIPER
@@ -154,12 +154,12 @@ int main(int argc, char *argv[])
 
    mfem::ParFiniteElementSpace *fes = solver->GetFES();
 
-      // build h1 desing space
-   int orderDesing = 1;
-   ::mfem::H1_FECollection desFECol_H1(orderDesing, dim);
+      // build h1 design space
+   int orderDesign = 1;
+   ::mfem::H1_FECollection desFECol_H1(orderDesign, dim);
    ::mfem::ParFiniteElementSpace desFESpace_scalar_H1(pmesh, &desFECol_H1 );
 
-   //gradients with respect to the desing field
+   //gradients with respect to the design field
    mfem::Vector objgrad(desFESpace_scalar_H1.GetTrueVSize()); objgrad=0.0; //of the objective
    mfem::Vector volgrad(desFESpace_scalar_H1.GetTrueVSize()); volgrad=0.0; //of the volume contr.
 
@@ -170,27 +170,27 @@ int main(int argc, char *argv[])
    xxmax=1.0;
    xxmin=1e-4;
 
-   // desing variable vector
-   mfem::ParGridFunction desingVarVec(&desFESpace_scalar_H1); desingVarVec=0.5;
+   // design variable vector
+   mfem::ParGridFunction designVarVec(&desFESpace_scalar_H1); designVarVec=0.5;
    mfem::Vector vdens; vdens.SetSize(desFESpace_scalar_H1.GetTrueVSize()); vdens=0.5;
 
    if(initializeRandom)
    {
       for(int Ij = 0; Ij< desFESpace_scalar_H1.GetTrueVSize(); Ij++)
       {
-         desingVarVec[Ij] = rand() / double(RAND_MAX);
+         designVarVec[Ij] = rand() / double(RAND_MAX);
          vdens[Ij] = rand() / double(RAND_MAX);
       }
    }
 
-   desingVarVec.SetFromTrueDofs(vdens);
-   //desingVarVec.Print();
+   designVarVec.SetFromTrueDofs(vdens);
+   //designVarVec.Print();
 
    std::cout<<"opt"<<std::endl;
 
    if(restartDesign)
    {
-      std::string tStringIn = "DesingVarVec";
+      std::string tStringIn = "DesignVarVec";
       int n = 6;
       std::string tWorlsRank = std::to_string( mpi.WorldRank());
     
@@ -202,11 +202,11 @@ int main(int argc, char *argv[])
       std::ifstream inp(tStringIn);
       mfem::ParGridFunction tLoadGF(pmesh, inp);
 
-      desingVarVec = tLoadGF;
+      designVarVec = tLoadGF;
 
-      for( int Ik=0;Ik<desingVarVec.Size();Ik++)
+      for( int Ik=0;Ik<designVarVec.Size();Ik++)
       {
-         if(desingVarVec[Ik] < 0.1){desingVarVec[Ik]=0.1;}
+         if(designVarVec[Ik] < 0.1){designVarVec[Ik]=0.1;}
       }
    }
 
@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
    double vol; //volume
 
    double max_vol = 1.0;
-   double maxVolAllowed = max_vol*0.3;
+   double maxVolAllowed = max_vol*0.5;
 
    mfem::ParaViewDataCollection paraview_dc("TopOpt", pmesh);
    paraview_dc.SetPrefixPath("ParaView");
@@ -228,23 +228,23 @@ int main(int argc, char *argv[])
 
    if(true)
    {
-      //--------------------------------------------------------------------------------
-      // Set Up MMA
-      int nVar = desingVarVec.Size();
-      MMA MMAmain(nVar, 1, 0);
-      for(int li=0;li<desingVarVec.Size();li++)
+      int nVar = designVarVec.Size();
+      int nCon = 1;
+      for(int li=0;li<nVar;li++)
       {
          xxmin[li]=1e-3;
          xxmax[li]=1.0;
       }
-
+      //--------------------------------------------------------------------------------
+      // Set Up MMA
+      MMA MMAmain(nVar, nCon, 0, xxmin.GetData(), xxmax.GetData());
       //--------------------------------------------------------------------------------
       std::cout<<"opt iter"<<std::endl;
 
       for(int i=1;i<max_it;i++)
       {
-         //solve desing variable and solve
-         solver->SetDesignGF(&desingVarVec);
+         //solve design variable and solve
+         solver->SetDesignGF(&designVarVec);
 
          solver->FSolve();
 
@@ -253,12 +253,12 @@ int main(int argc, char *argv[])
 
          // evaluate obj and volume
          mfem::ThermalComplianceQoI tObj;
-         tObj.SetFESpaceAndField(fes, &desingVarVec,  &TempGF);
+         tObj.SetFESpaceAndField(fes, &designVarVec,  &TempGF);
 
          std::cout<<"obj"<<std::endl;
          mfem::VolumeQoI tContraint;
          tContraint.SetDesignFES( &desFESpace_scalar_H1 );
-         tContraint.SetDesField( &desingVarVec );
+         tContraint.SetDesField( &designVarVec );
 
          std::cout<<"val"<<std::endl;
          ThermalCompliance =tObj.Eval();
@@ -276,7 +276,7 @@ int main(int argc, char *argv[])
 
 
          mfem::ThermalComplianceIntegrator_1 * ImpdQdTIntegrator = new mfem::ThermalComplianceIntegrator_1;
-         ImpdQdTIntegrator->SetDesignAndTempGF(&desingVarVec, &TempGF);
+         ImpdQdTIntegrator->SetDesignAndTempGF(&designVarVec, &TempGF);
          mfem::ParLinearForm ParLinerFormDQDT(fes);
          ParLinerFormDQDT.AddDomainIntegrator(ImpdQdTIntegrator);
 
@@ -294,7 +294,7 @@ int main(int argc, char *argv[])
 
          mfem::DiffusionAdjointPostIntegrator * AdjointPostIntegrator = new mfem::DiffusionAdjointPostIntegrator;
          AdjointPostIntegrator->SetAdjoint(&tAdjointGF);
-         AdjointPostIntegrator->SetDesignAndTempGF(&desingVarVec, &TempGF);
+         AdjointPostIntegrator->SetDesignAndTempGF(&designVarVec, &TempGF);
          mfem::ParLinearForm ParLinerFormPostAdjoint(&desFESpace_scalar_H1);
          ParLinerFormPostAdjoint.AddDomainIntegrator(AdjointPostIntegrator);
 
@@ -305,7 +305,7 @@ int main(int argc, char *argv[])
 
          paraview_dc.SetCycle(i);
          paraview_dc.SetTime(i*1.0);
-         paraview_dc.RegisterField("design",&desingVarVec);
+         paraview_dc.RegisterField("design",&designVarVec);
          mfem::ParGridFunction objGradGF(&desFESpace_scalar_H1); objGradGF = objgrad;
          paraview_dc.RegisterField("ObjGrad",&objGradGF);
          mfem::ParGridFunction ConstraintGF(&desFESpace_scalar_H1); ConstraintGF = volgrad;
@@ -317,22 +317,22 @@ int main(int argc, char *argv[])
          // {
          //    double epsilon = 1e-8;
          //    mfem::ParGridFunction tFD_sens(&desFESpace_scalar_H1); tFD_sens = 0.0;
-         //    for( int Ia = 0; Ia<desingVarVec.Size(); Ia++)
+         //    for( int Ia = 0; Ia<designVarVec.Size(); Ia++)
          //    {
-         //       desingVarVec[Ia] +=epsilon;
+         //       designVarVec[Ia] +=epsilon;
 
          //       mfem::VolumeQoI tContraintFD_1;
          //       tContraintFD_1.SetDesignFES( &desFESpace_scalar_H1 );
-         //       tContraintFD_1.SetDesField( desingVarVec );
+         //       tContraintFD_1.SetDesField( designVarVec );
          //       double volFD_1  =tContraint.Eval();
 
-         //       desingVarVec[Ia] -=2.0*epsilon;
+         //       designVarVec[Ia] -=2.0*epsilon;
          //       mfem::VolumeQoI tContraintFD_2;
          //       tContraintFD_2.SetDesignFES( &desFESpace_scalar_H1 );
-         //       tContraintFD_2.SetDesField( desingVarVec );
+         //       tContraintFD_2.SetDesField( designVarVec );
          //       double volFD_2  =tContraint.Eval();
 
-         //       desingVarVec[Ia] +=epsilon;
+         //       designVarVec[Ia] +=epsilon;
 
          //       tFD_sens[Ia] = (volFD_1-volFD_2)/(2.0*epsilon);
          //    }//
@@ -353,9 +353,9 @@ int main(int argc, char *argv[])
          // {
          //    double epsilon = 1e-8;
          //    mfem::ParGridFunction tFD_sens(&desFESpace_scalar_H1); tFD_sens = 0.0;
-         //    for( int Ia = 0; Ia<desingVarVec.Size(); Ia++)
+         //    for( int Ia = 0; Ia<designVarVec.Size(); Ia++)
          //    {
-         //          desingVarVec[Ia] +=epsilon;
+         //          designVarVec[Ia] +=epsilon;
 
          //          // Allocate the nonlinear diffusion solver
          //          mfem::NLDiffusion solver_FD1(pmesh,2);
@@ -363,8 +363,8 @@ int main(int argc, char *argv[])
          //          solver_FD1.AddDirichletBC(3,0.0);
          //          solver_FD1.AddNeumannLoadVal( tLoad, Attribute );
          //          solver_FD1.AddMaterial(tMatCoeff);
-         //          solver_FD1.AddDesignCoeff(DesingCoeff);
-         //          solver_FD1.AddDesignGF(&desingVarVec);
+         //          solver_FD1.AddDesignCoeff(DesignCoeff);
+         //          solver_FD1.AddDesignGF(&designVarVec);
          //          solver_FD1.SetNewtonSolver(1e-6, 1e-8,15, 1, 1.0);
          //          solver_FD1.SetLinearSolver(1e-10, 1e-12, 1000, 0);
                   
@@ -377,11 +377,11 @@ int main(int argc, char *argv[])
          //          mfem::EnergyDissipationObjective tObjFD_1;
          //          tObjFD_1.SetNLDiffusionSolver( &solver_FD1 );
          //          tObjFD_1.SetDesignFES( &desFESpace_scalar_H1 );
-         //          tObjFD_1.SetDesField( desingVarVec );
+         //          tObjFD_1.SetDesField( designVarVec );
          //          tObjFD_1.SetNLDiffusionCoeff( tMatCoeff );
          //          double energyDissipFD_1 =tObjFD_1.Eval();
 
-         //          desingVarVec[Ia] -=2.0*epsilon;
+         //          designVarVec[Ia] -=2.0*epsilon;
          //          mfem::NLDiffusion solver_FD2(pmesh,2);
          //          //solver_FD2.AddDirichletBC(2,0.05);
          //          solver_FD2.AddDirichletBC(3,0.0);
@@ -389,8 +389,8 @@ int main(int argc, char *argv[])
          //          solver_FD2.SetLinearSolver(1e-10, 1e-12, 1000, 0);
          //          solver_FD2.AddNeumannLoadVal( tLoad, Attribute );
          //          solver_FD2.AddMaterial(tMatCoeff);
-         //          solver_FD2.AddDesignCoeff(DesingCoeff);
-         //          solver_FD2.AddDesignGF(&desingVarVec);
+         //          solver_FD2.AddDesignCoeff(DesignCoeff);
+         //          solver_FD2.AddDesignGF(&designVarVec);
          //          solver_FD2.FSolve();
          //          // mfem::ParGridFunction tPreassureGF_FD;
          //          // solver->GetSol(tPreassureGF_FD);
@@ -398,11 +398,11 @@ int main(int argc, char *argv[])
          //          mfem::EnergyDissipationObjective tObjFD_2;
          //          tObjFD_2.SetNLDiffusionSolver( &solver_FD2 );
          //          tObjFD_2.SetDesignFES( &desFESpace_scalar_H1 );
-         //          tObjFD_2.SetDesField( desingVarVec );
+         //          tObjFD_2.SetDesField( designVarVec );
          //          tObjFD_2.SetNLDiffusionCoeff(tMatCoeff );
          //          double energyDissipFD_2 =tObjFD_2.Eval();
 
-         //          desingVarVec[Ia] +=epsilon;
+         //          designVarVec[Ia] +=epsilon;
 
          //          tFD_sens[Ia] = (energyDissipFD_1-energyDissipFD_2)/(2.0*epsilon);
          //          std::cout<<"Var number: "<< Ia<< " Analytic: "<<objgrad[Ia] << " FD: "<< tFD_sens[Ia]<<std::endl;
@@ -432,7 +432,7 @@ int main(int argc, char *argv[])
          //       tObj_FD1.SetNLDiffusionSolver( solver );
          //       tObj_FD1.SetPreassure( &tPreassureGF);
          //       tObj_FD1.SetDesignFES( fes );
-         //       tObj_FD1.SetDesField( desingVarVec );
+         //       tObj_FD1.SetDesField( designVarVec );
          //       tObj_FD1.SetNLDiffusionCoeff( tMatCoeff );
 
          //       double energyDissipFD1 =tObj_FD1.Eval();
@@ -443,7 +443,7 @@ int main(int argc, char *argv[])
          //       tObj_FD2.SetNLDiffusionSolver( solver );
          //       tObj_FD2.SetPreassure( &tPreassureGF);
          //       tObj_FD2.SetDesignFES( fes );
-         //       tObj_FD2.SetDesField( desingVarVec );
+         //       tObj_FD2.SetDesField( designVarVec );
          //       tObj_FD2.SetNLDiffusionCoeff( tMatCoeff );
 
          //       double energyDissipFD2 =tObj_FD2.Eval();
@@ -468,31 +468,31 @@ int main(int argc, char *argv[])
          // {
          //    double epsilon = 1e-8;
          //    mfem::ParGridFunction tFD_sens(fes); tFD_sens = 0.0;
-         //    for( int Ia = 0; Ia<desingVarVec.Size(); Ia++)
+         //    for( int Ia = 0; Ia<designVarVec.Size(); Ia++)
          //    {
-         //       desingVarVec[Ia] +=epsilon;
+         //       designVarVec[Ia] +=epsilon;
 
          //       mfem::EnergyDissipationObjective tObj_FD1;
          //       tObj_FD1.SetNLDiffusionSolver( solver );
          //       tObj_FD1.SetPreassure( &tPreassureGF);
          //       tObj_FD1.SetDesignFES( fes );
-         //       tObj_FD1.SetDesField( desingVarVec );
+         //       tObj_FD1.SetDesField( designVarVec );
          //       tObj_FD1.SetNLDiffusionCoeff( tMatCoeff );
 
          //       double energyDissipFD1 =tObj_FD1.Eval();
 
-         //       desingVarVec[Ia] -=2.0*epsilon;
+         //       designVarVec[Ia] -=2.0*epsilon;
                
          //       mfem::EnergyDissipationObjective tObj_FD2;
          //       tObj_FD2.SetNLDiffusionSolver( solver );
          //       tObj_FD2.SetPreassure( &tPreassureGF);
          //       tObj_FD2.SetDesignFES( fes );
-         //       tObj_FD2.SetDesField( desingVarVec );
+         //       tObj_FD2.SetDesField( designVarVec );
          //       tObj_FD2.SetNLDiffusionCoeff( tMatCoeff );
 
          //       double energyDissipFD2 =tObj_FD2.Eval();
 
-         //       desingVarVec[Ia] +=epsilon;
+         //       designVarVec[Ia] +=epsilon;
 
          //       tFD_sens[Ia] = (energyDissipFD1-energyDissipFD2)/(2.0*epsilon);
          //    }
@@ -512,31 +512,31 @@ int main(int argc, char *argv[])
          // {
          //    double epsilon = 1e-8;
          //    mfem::ParGridFunction tFD_sens(fes); tFD_sens = 0.0;
-         //    for( int Ia = 0; Ia<desingVarVec.Size(); Ia++)
+         //    for( int Ia = 0; Ia<designVarVec.Size(); Ia++)
          //    {
-         //       desingVarVec[Ia] +=epsilon;
+         //       designVarVec[Ia] +=epsilon;
 
          //       mfem::EnergyDissipationObjective tObj_FD1;
          //       tObj_FD1.SetNLDiffusionSolver( solver );
          //       tObj_FD1.SetPreassure( &tPreassureGF);
          //       tObj_FD1.SetDesignFES( fes );
-         //       tObj_FD1.SetDesField( desingVarVec );
+         //       tObj_FD1.SetDesField( designVarVec );
          //       tObj_FD1.SetNLDiffusionCoeff( tMatCoeff );
 
          //       double energyDissipFD1 =tObj_FD1.Eval();
 
-         //       desingVarVec[Ia] -=2.0*epsilon;
+         //       designVarVec[Ia] -=2.0*epsilon;
                
          //       mfem::EnergyDissipationObjective tObj_FD2;
          //       tObj_FD2.SetNLDiffusionSolver( solver );
          //       tObj_FD2.SetPreassure( &tPreassureGF);
          //       tObj_FD2.SetDesignFES( fes );
-         //       tObj_FD2.SetDesField( desingVarVec );
+         //       tObj_FD2.SetDesField( designVarVec );
          //       tObj_FD2.SetNLDiffusionCoeff( tMatCoeff );
 
          //       double energyDissipFD2 =tObj_FD2.Eval();
 
-         //       desingVarVec[Ia] +=epsilon;
+         //       designVarVec[Ia] +=epsilon;
 
          //       tFD_sens[Ia] = (energyDissipFD1-energyDissipFD2)/(2.0*epsilon);
          //    }
@@ -557,26 +557,13 @@ int main(int argc, char *argv[])
              mfem::mfem_error("break before update");
          }
 
-         // MMA Routine
-         
          double con=vol/maxVolAllowed-1;                                      // V/V_max -1
          volgrad /= maxVolAllowed;
-         //mma->mmasub(nVar,nCon,i,desingVarVec,xxmin,xxmax,objgrad,&con,&volgrad,xxmin,xxmax);
-         /*
-         int nVar = desingVarVec.Size();
-         double* xval = desingVarVec.GetData();
-         double* xmin = xxmin.GetData();
-         double* xmax = xxmax.GetData();
-         double* fval = &ThermalCompliance;
-         double* dfdx = objgrad.GetData();
-         double* gx = &con;
-         double* dgdx = volgrad.GetData();
-         */
-         printf("Updating...\n");
-         MMAmain.Update(desingVarVec.Size(), 1, i, desingVarVec.GetData(), xxmin.GetData(), xxmax.GetData(), &ThermalCompliance, objgrad.GetData(), &con, volgrad.GetData());
-         //MMAmain.Update(nVar, 1, i, xval, xmin, xmax, fval, dfdx, gx, dgdx);
 
-{
+         // MMA Routine: Update(iteration, design variables, objective, objective gradient, constraint(s), constraint gradients)
+         MMAmain.Update(i, designVarVec.GetData(), &ThermalCompliance, objgrad.GetData(), &con, volgrad.GetData());
+         //std::cout << "Con = " << con << ", Obj = " << ThermalCompliance << std::endl;
+         {
          mfem::ParaViewDataCollection paraview_dc2("topOptAft", pmesh);
          paraview_dc2.SetPrefixPath("ParaView");
          paraview_dc2.SetLevelsOfDetail(order);
@@ -585,11 +572,11 @@ int main(int argc, char *argv[])
 
          paraview_dc2.SetCycle(i);
          paraview_dc2.SetTime(i*1.0);
-         paraview_dc2.RegisterField("design",&desingVarVec);         
-         paraview_dc2.Save();     
-}
-         std::string tDesingName = "DesingVarVec";
-         desingVarVec.Save( tDesingName.c_str() );
+         paraview_dc2.RegisterField("design",&designVarVec);
+         paraview_dc2.Save();
+         }
+         std::string tDesignName = "DesignVarVec";
+         designVarVec.Save( tDesignName.c_str() );
 
          std::string tFieldName = "FieldVec";
          TempGF.Save( tFieldName.c_str() );
@@ -598,11 +585,7 @@ int main(int argc, char *argv[])
 
    }
 
-
-   // delete mma;
-    //delete DesingCoeff;
-
-
+    //delete DesignCoeff;
    delete solver;
    delete pmesh;
    // Flush output before MPI_finalize

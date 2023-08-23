@@ -68,12 +68,7 @@ int main(int argc, char *argv[])
    double norm2 = 0.0;
    double normInf = 0.0;
    double kkttol = 0.0;
-   
-   //Initialize
-   MMA MMAmain(nVar, nCon, iter);
-   std::ofstream mma;
-   mma.open("mma.dat");
-   //remove("sub.dat");
+
 
    for (int i = 0; i < nVar; i++)
    {
@@ -82,6 +77,12 @@ int main(int argc, char *argv[])
       xmax[i] = 2.0;
    }
    
+   //Initialize
+   MMA MMAmain(nVar, nCon, iter, xmin, xmax);
+   std::ofstream mma;
+   mma.open("mma.dat");
+   //remove("sub.dat");
+
    mma << xval[0] << " " << xval[1] << std::endl;
    Rosenbrock(xval, aR, bR, fval, dfdx, gx, dgdx);
 
@@ -92,7 +93,7 @@ int main(int argc, char *argv[])
       iter++;
       // Run MMA
       //MMAmain.mmasub(nVar, nCon, iter, xval, xmin, xmax, xo1, xo2, fval, dfdx, gx, dgdx);
-      MMAmain.Update(nVar, nCon, iter, xval, xmin, xmax, fval, dfdx, gx, dgdx);
+      MMAmain.Update(iter, xval, fval, dfdx, gx, dgdx);
       // Compute objective and constraints
       Rosenbrock(xval, aR, bR, fval, dfdx, gx, dgdx);
       mma << xval[0] << " " << xval[1] << std::endl;
