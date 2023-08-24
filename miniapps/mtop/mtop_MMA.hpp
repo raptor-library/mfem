@@ -35,7 +35,7 @@ private:
    // Global: Old design variables
    double *xo1, *xo2;
 
-   //Convergence studies
+   //Convergence study
    double kktnorm;
 
    bool isInitialized = false;
@@ -374,17 +374,18 @@ public:
 
    }
 
-   void Update(int iter, double* xval, double* fval, double* dfdx, double* gx, double* dgdx);
+   void Update(int iter, double* fval, double* dfdx, double* gx, double* dgdx, double* xval);
 
    // Set and solve a subproblem: return new xval
-   void mmasub(int iter, double* xval, double* fval, double* dfdx, double* gx, double* dgdx);
+   void mmasub(int iter, double* fval, double* dfdx, double* gx, double* dgdx, double* xval);
 
-   void kktcheck(double* x, double* y, double* dfdx, double* gx, double* dgdx);
+   void kktcheck(double* y, double* dfdx, double* gx, double* dgdx, double* x);
 
    void subsolv();
 
    double* get_Low();
    double* get_Upp();
+   double get_KKT();
 
    // Options
    // Return necessary data for possible restart

@@ -93,12 +93,19 @@ int main(int argc, char *argv[])
    {
       iter++;
       // Run MMA
-      MMAmain.Update(iter, xval, fval, dfdx, gx, dgdx);
+      MMAmain.Update(iter, fval, dfdx, gx, dgdx, xval);
       // Compute objective and constraints
       lower = MMAmain.get_Low();
       upper = MMAmain.get_Upp();
       Rosenbrock(xval, aR, bR, fval, dfdx, gx, dgdx);
       mma << xval[0] << "\n" << xval[1] << "\n" << upper[0] << "\n" << upper[1] << "\n" << lower[0] << "\n" << lower[1] << std::endl;
+
+      if (MMAmain.get_KKT() < 100)
+      {
+         printf("KKT achieved: Norm = %f\n", MMAmain.get_KKT());
+         break;
+      }
+      
 
       if (iter % restart == 0)
       {

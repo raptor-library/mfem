@@ -49,20 +49,20 @@ namespace mma
 
 //MMA::MMA(MPI_Comm Comm,int n, int m, double * x, int sx) {}
 
-void MMA::Update(int iter, double* xval, double* fval, double* dfdx, double* gx, double* dgdx)
+void MMA::Update(int iter, double* fval, double* dfdx, double* gx, double* dgdx, double* xval)
 {
    //printf("fval = %f, ", fval[0]);
    //printf("dfdx = [%f %f], ", dfdx[0], dfdx[1]);
    //printf("gx = %f, ", gx[0]);
    //printf("dgdx = [%f %f]\n", dgdx[0], dgdx[1]);
-   mmasub(iter, xval, fval, dfdx, gx, dgdx);
-   kktcheck(xval, y, dfdx, gx, dgdx);
+   mmasub(iter, fval, dfdx, gx, dgdx, xval);
+   kktcheck(y, dfdx, gx, dgdx, xval);
    //printf("\nNew design found: x = [%f, %f] ", xval[0], xval[1]);
    //printf("KKT-Norm = %f\n\n", kktnorm);
 
 }
 
-void MMA::mmasub(int iter, double* xval, double* fval, double* dfdx, double* gx, double* dgdx)
+void MMA::mmasub(int iter, double* fval, double* dfdx, double* gx, double* dgdx, double* xval)
 {
    for (int i = 0; i < nVar; i++)
    {
@@ -917,7 +917,7 @@ void MMA::subsolv()
    //results.close();
 }
 
-void MMA::kktcheck(double* x, double* y, double* dfdx, double* gx, double* dgdx)
+void MMA::kktcheck(double* y, double* dfdx, double* gx, double* dgdx, double* x)
 {
    //std::ofstream kkt;
    //kkt.open("KKT.dat", std::ios::app);
@@ -1000,8 +1000,7 @@ void MMA::kktcheck(double* x, double* y, double* dfdx, double* gx, double* dgdx)
    // Norm of the residual
    residunorm = std::sqrt(residunorm);
    kktnorm = residunorm;
-
-
+   
    //kkt.close();
 }
 
@@ -1043,5 +1042,10 @@ double* MMA::get_Low()
 double* MMA::get_Upp()
 {
    return upp;
+}
+
+double MMA::get_KKT()
+{
+   return kktnorm;
 }
 } // end mma namespace

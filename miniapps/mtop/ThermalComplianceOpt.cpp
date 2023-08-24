@@ -13,11 +13,11 @@ using namespace mma;
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI
-   int num_procs, myrank = 0;
+   int num_procs, myrank;
    mfem::MPI_Session mpi(argc, argv);
    //MPI_Init(&argc, &argv);
    //MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   //MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+   MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
    // Define Caliper ConfigManager
 #ifdef MFEM_USE_CALIPER
