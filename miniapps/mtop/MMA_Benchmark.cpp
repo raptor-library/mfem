@@ -61,9 +61,11 @@ int main(int argc, char *argv[])
    double* dgdx = new double[nVar * nCon];
    double* xmin = new double[nVar];
    double* xmax = new double[nVar];
+   double* upper = new double[nVar];
+   double* lower = new double[nVar];
    // Simulation parameters
    int iter = 0;
-   int maxiter = 4;
+   int maxiter = 100;
    int restart = maxiter + 1;
    double norm2 = 0.0;
    double normInf = 0.0;
@@ -73,8 +75,8 @@ int main(int argc, char *argv[])
    for (int i = 0; i < nVar; i++)
    {
       xval[i] = 0.0;
-      xmin[i] = -2.0;
-      xmax[i] = 2.0;
+      xmin[i] = -3.0;
+      xmax[i] = 1.0;
    }
    
    //Initialize
@@ -83,22 +85,20 @@ int main(int argc, char *argv[])
    mma.open("mma.dat");
    //remove("sub.dat");
 
-   mma << xval[0] << " " << xval[1] << std::endl;
+   mma << xval[0] << "\n" << xval[1] << "\n" << xmax[0] << "\n" << xmax[1] << "\n" << xmin[0] << "\n" << xmin[1] << std::endl;
    Rosenbrock(xval, aR, bR, fval, dfdx, gx, dgdx);
 
    //kktnorm = kkttol + 10;
    while (iter < maxiter)
    {
-      
       iter++;
       // Run MMA
-      //MMAmain.mmasub(nVar, nCon, iter, xval, xmin, xmax, xo1, xo2, fval, dfdx, gx, dgdx);
       MMAmain.Update(iter, xval, fval, dfdx, gx, dgdx);
       // Compute objective and constraints
+      lower = MMAmain.get_Low();
+      upper = MMAmain.get_Upp();
       Rosenbrock(xval, aR, bR, fval, dfdx, gx, dgdx);
-      mma << xval[0] << " " << xval[1] << std::endl;
-      // Compute KKT residual
-      //MMAmain.kktcheck(nCon, nVar, xmma, ymma, xmin, xmax, dfdx, gx, dgdx, &kktnorm);
+      mma << xval[0] << "\n" << xval[1] << "\n" << upper[0] << "\n" << upper[1] << "\n" << lower[0] << "\n" << lower[1] << std::endl;
 
       if (iter % restart == 0)
       {
@@ -106,7 +106,7 @@ int main(int argc, char *argv[])
       }
    }
    //printf("Iteration %d: kktnorm = %f\n", iter, kktnorm);
-   //mma.close();
+   mma.close();
 
    return 0;
 }

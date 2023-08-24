@@ -57,8 +57,8 @@ void MMA::Update(int iter, double* xval, double* fval, double* dfdx, double* gx,
    //printf("dgdx = [%f %f]\n", dgdx[0], dgdx[1]);
    mmasub(iter, xval, fval, dfdx, gx, dgdx);
    kktcheck(xval, y, dfdx, gx, dgdx);
-   printf("\nNew design found: x = [%f, %f] ", xval[0], xval[1]);
-   printf("KKT-Norm = %f\n\n", kktnorm);
+   //printf("\nNew design found: x = [%f, %f] ", xval[0], xval[1]);
+   //printf("KKT-Norm = %f\n\n", kktnorm);
 
 }
 
@@ -66,7 +66,7 @@ void MMA::mmasub(int iter, double* xval, double* fval, double* dfdx, double* gx,
 {
    for (int i = 0; i < nVar; i++)
    {
-      factor[i] = asyincr;
+      //factor[i] = asyincr;
       p0[i] = 0.0;
       q0[i] = 0.0;
       pq0[i] = 0.0;
@@ -104,7 +104,7 @@ void MMA::mmasub(int iter, double* xval, double* fval, double* dfdx, double* gx,
       for (int i = 0; i < nVar; i++)
       {
          //Determine sign
-          zz = (xval[i] - xo1[i]) * (xo1[i] - xo2[i]);
+         zz = (xval[i] - xo1[i]) * (xo1[i] - xo2[i]);
          if ( zz > 0.0)
          {
             factor[i] = asyincr;
@@ -113,6 +113,11 @@ void MMA::mmasub(int iter, double* xval, double* fval, double* dfdx, double* gx,
          {
             factor[i] = asydecr;
          }
+         else
+         {
+            factor[i] = 1.0;
+         }
+         
 
          //Find new asymptote
          low[i] = xval[i] - factor[i] * (xo1[i] - low[i]);
@@ -134,6 +139,7 @@ void MMA::mmasub(int iter, double* xval, double* fval, double* dfdx, double* gx,
       // Calculation of bounds alfa and beta according to:
       // alfa = max{xmin, low + 0.1(xval-low), xval-0.5(xmax-xmin)}
       // beta = min{xmax, upp - 0.1(upp-xval), xval+0.5(xmax-xmin)}
+      
       alfa[i] = std::max(std::max(low[i] + albefa * (xval[i] - low[i]),
                                   xval[i] - move * (xmax[i] - xmin[i])), xmin[i]);
       beta[i] = std::min(std::min(upp[i] - albefa * (upp[i] - xval[i]),
@@ -184,7 +190,7 @@ void MMA::mmasub(int iter, double* xval, double* fval, double* dfdx, double* gx,
       b[i] -= gx[i];
    }
 
-   subsolv(epsimin, b);
+   subsolv();
 
    // Update design variables
    for (int i = 0; i < nVar; i++)
@@ -206,17 +212,25 @@ void MMA::mmasub(int iter, double* xval, double* fval, double* dfdx, double* gx,
  * Input: m, n, low, upp, alfa, beta, p0, q0, P, Q, a0, a, b.
  * Output: x, y, z, slack variables and Lagrange multiplers.
 */
-void MMA::subsolv(double epsimin, double* b)
+void MMA::subsolv()
 {
    //std::ofstream results;
    //results.open("sub.dat", std::ios::app);
+
+   ittt = 0;
+   itto = 0;
+   epsi = 1;
+   itera = 0;
+   z = 1;
+   zet = 1;
+
    for (int i = 0; i < nVar; i++)
    {
       epsvecn[i] = epsi;
       x[i] = 0.5 * (alfa[i] + beta[i]);
-      xsi[i] = 1/(x[i] - alfa[i]);
+      xsi[i] = 1.0/(x[i] - alfa[i]);
       xsi[i] = std::max(xsi[i], 1.0);
-      eta[i] = 1/(beta[i] - x[i]);
+      eta[i] = 1.0/(beta[i] - x[i]);
       eta[i] = std::max(eta[i], 1.0);
    }
    for (int i = 0; i < nCon; i++)
@@ -225,7 +239,7 @@ void MMA::subsolv(double epsimin, double* b)
       y[i] = 1.0;
       lam[i] = 1.0;
       mu[i] = std::max(1.0, 0.5 * c[i]);
-      s[i] = 1;
+      s[i] = 1.0;
    }
 
    //for (int Ik = 0; true; Ik++)
@@ -743,14 +757,28 @@ void MMA::subsolv(double epsimin, double* b)
             for (int i = 0; i < nCon; ++i)
             {
                y[i] = yold[i] + steg * dy[i];
-               while (std::fabs(y[i]) < machineEpsilon)
+               if (std::fabs(y[i]) < machineEpsilon)
                {
-                  y[i] *= 10;
+                  y[i] = machineEpsilon;
+               }
+               else
+               {
+                  while (std::fabs(y[i]) < machineEpsilon)
+                  {
+                     y[i] *= 10;
+                  }
                }
                lam[i] = lamold[i] + steg * dlam[i];
-               while (std::fabs(lam[i]) < machineEpsilon)
+               if (std::fabs(lam[i]) < machineEpsilon)
                {
-                  lam[i] *= 10;
+                  lam[i] = machineEpsilon;
+               }
+               else
+               {
+                  while (std::fabs(lam[i]) < machineEpsilon)
+                  {
+                     lam[i] *= 10;
+                  }
                }
                mu[i] = muold[i] + steg * dmu[i];
                s[i] = sold[i] + steg * ds[i];
@@ -891,9 +919,10 @@ void MMA::subsolv(double epsimin, double* b)
 
 void MMA::kktcheck(double* x, double* y, double* dfdx, double* gx, double* dgdx)
 {
-   std::ofstream kkt;
-   kkt.open("KKT.dat", std::ios::app);
+   //std::ofstream kkt;
+   //kkt.open("KKT.dat", std::ios::app);
 
+   /*
    for (int i = 0; i < nVar; i++)
    {
       kkt << x[i] << " " << xsi[i] << " " << eta[i] << " " << dfdx[i] << " " << xmin[i] << " " << xmax[i] << "\n";
@@ -902,7 +931,7 @@ void MMA::kktcheck(double* x, double* y, double* dfdx, double* gx, double* dgdx)
    {
       kkt << y[i] << " " << lam[i] << " " << mu[i] << " " << s[i] << " " << gx[i] << "\n";
    }
-   
+   */
    
    for (int i = 0; i < nVar; i++)
    {
@@ -972,7 +1001,8 @@ void MMA::kktcheck(double* x, double* y, double* dfdx, double* gx, double* dgdx)
    residunorm = std::sqrt(residunorm);
    kktnorm = residunorm;
 
-   kkt.close();
+
+   //kkt.close();
 }
 
 
@@ -1004,5 +1034,14 @@ void MMA::Restart(double* xval, int length, int iter)
       mma << low[i] << "\n";
    }
    mma.close();
+}
+
+double* MMA::get_Low()
+{
+   return low;
+}
+double* MMA::get_Upp()
+{
+   return upp;
 }
 } // end mma namespace

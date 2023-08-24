@@ -173,9 +173,8 @@ private:
 
 public:
    // Construct using defaults subproblem penalization
-   MMA(int nVar, int nCon, int iter, double *xxmin, double *xxmax) : a(NULL)
+   MMA(int nVar, int nCon, int iter, double *xxmin, double *xxmax)
    {
-      
       this->setGlobals(nVar, nCon);
       this->setMMA(nVar, nCon);
       this->setSubProb(nVar, nCon);
@@ -382,8 +381,10 @@ public:
 
    void kktcheck(double* x, double* y, double* dfdx, double* gx, double* dgdx);
 
-   void subsolv(double epsimin, double* b);
+   void subsolv();
 
+   double* get_Low();
+   double* get_Upp();
 
    // Options
    // Return necessary data for possible restart
