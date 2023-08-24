@@ -64,26 +64,29 @@ int main(int argc, char *argv[])
    double* upper = new double[nVar];
    double* lower = new double[nVar];
    // Simulation parameters
-   int iter = 0;
    int maxiter = 100;
    int restart = maxiter + 1;
    double norm2 = 0.0;
    double normInf = 0.0;
    double kkttol = 0.0;
+   double tol = 1.0;
+   // -- RESTART --
+   // if a restart from a previous run is desired, set iter to the iteration
+   // number of the previous run
+   int iter = 0;
 
-
+   // ----------- SET UP PROBLEM ------------
    for (int i = 0; i < nVar; i++)
    {
       xval[i] = 0.0;
-      xmin[i] = -3.0;
-      xmax[i] = 1.0;
+      xmin[i] = -2.0;
+      xmax[i] = 2.0;
    }
    
-   //Initialize
-   MMA MMAmain(nVar, nCon, iter, xmin, xmax);
+   // ---------- CALL CONSTRUCTOR -----------
+   MMA MMAmain(nVar, nCon, iter, xval, xmin, xmax);
    std::ofstream mma;
    mma.open("mma.dat");
-   //remove("sub.dat");
 
    mma << xval[0] << "\n" << xval[1] << "\n" << xmax[0] << "\n" << xmax[1] << "\n" << xmin[0] << "\n" << xmin[1] << std::endl;
    Rosenbrock(xval, aR, bR, fval, dfdx, gx, dgdx);
@@ -91,26 +94,29 @@ int main(int argc, char *argv[])
    //kktnorm = kkttol + 10;
    while (iter < maxiter)
    {
-      iter++;
-      // Run MMA
+      
+      // ----------------- RUN MMA --------------------
       MMAmain.Update(iter, fval, dfdx, gx, dgdx, xval);
-      // Compute objective and constraints
-      lower = MMAmain.get_Low();
-      upper = MMAmain.get_Upp();
+      // ---------- UPDATE DESIGN & CONSTRAINTS -------
       Rosenbrock(xval, aR, bR, fval, dfdx, gx, dgdx);
+      // ---------- PRINT FOR VISUALIZATION------------
+      lower = MMAmain.getLow();
+      upper = MMAmain.getUpp();
       mma << xval[0] << "\n" << xval[1] << "\n" << upper[0] << "\n" << upper[1] << "\n" << lower[0] << "\n" << lower[1] << std::endl;
 
-      if (MMAmain.get_KKT() < 100)
+      // ------------- CHECK CONVERGENCE --------------
+      if (MMAmain.getKKT() < tol)
       {
-         printf("KKT achieved: Norm = %f\n", MMAmain.get_KKT());
+         printf("KKT satisfied: Norm = %f\n", MMAmain.getKKT());
          break;
       }
-      
-
+   
+      // -------------- RESTART if desired ------------
       if (iter % restart == 0)
       {
-         MMAmain.Restart(xval, nVar, iter);
+         MMAmain.Restart(xval, iter);
       }
+      iter++;
    }
    //printf("Iteration %d: kktnorm = %f\n", iter, kktnorm);
    mma.close();

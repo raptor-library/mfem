@@ -173,12 +173,12 @@ private:
 
 public:
    // Construct using defaults subproblem penalization
-   MMA(int nVar, int nCon, int iter, double *xxmin, double *xxmax)
+   MMA(int nVar, int nCon, int iter, double *xval, double *xxmin, double *xxmax)
    {
       this->setGlobals(nVar, nCon);
       this->setMMA(nVar, nCon);
       this->setSubProb(nVar, nCon);
-      this->initializeGlobals(nVar, nCon, iter, xxmin, xxmax);
+      this->initializeGlobals(nVar, nCon, iter, xval, xxmin, xxmax);
    }
 
    //MMA(Comm, int nVar, int nCon, int iter)
@@ -302,7 +302,7 @@ public:
       delete[] sold;
    }
 
-   void initializeGlobals(int nVariables, int nConstraints, int iter, double *xxmin, double *xxmax)
+   void initializeGlobals(int nVariables, int nConstraints, int iter, double *xval, double *xxmin, double *xxmax)
    {
       nVar = nVariables;
       nCon = nConstraints;
@@ -313,18 +313,14 @@ public:
       {
          for (int i = 0; i < nVar; i++)
          {
-            //MMAmain.xval[i] = 0.0;
             xo1[i] = 0.0;
             xo2[i] = 0.0;
-            //xmin[i] = -2.0;
-            //xmax[i] = 2.0;
-            low[i] = -2.0;
-            upp[i] = 2.0;
+            low[i] = xmin[i];
+            upp[i] = xmax[i];
          }
       }
       else
       {
-         /*
          std::ifstream input("Restart.dat");
          input >> iter;
          printf("iter = %d\n", iter);
@@ -354,7 +350,6 @@ public:
             printf("low[%d] = %f\n", i, low[i]);
          }
          input.close();
-         */
       }
 
       for (int i = 0; i < nCon; i++)
@@ -383,13 +378,13 @@ public:
 
    void subsolv();
 
-   double* get_Low();
-   double* get_Upp();
-   double get_KKT();
+   double* getLow();
+   double* getUpp();
+   double getKKT();
 
    // Options
    // Return necessary data for possible restart
-   void Restart(double* xval, int length, int iter);
+   void Restart(double* xval, int iter);
 
 };
 

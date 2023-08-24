@@ -922,17 +922,6 @@ void MMA::kktcheck(double* y, double* dfdx, double* gx, double* dgdx, double* x)
    //std::ofstream kkt;
    //kkt.open("KKT.dat", std::ios::app);
 
-   /*
-   for (int i = 0; i < nVar; i++)
-   {
-      kkt << x[i] << " " << xsi[i] << " " << eta[i] << " " << dfdx[i] << " " << xmin[i] << " " << xmax[i] << "\n";
-   }
-   for (int i = 0; i < nCon; i++)
-   {
-      kkt << y[i] << " " << lam[i] << " " << mu[i] << " " << s[i] << " " << gx[i] << "\n";
-   }
-   */
-   
    for (int i = 0; i < nVar; i++)
    {
       sum1[i] = 0.0;
@@ -1006,45 +995,45 @@ void MMA::kktcheck(double* y, double* dfdx, double* gx, double* dgdx, double* x)
 
 
 
-void MMA::Restart(double* xval, int length, int iter)
+void MMA::Restart(double* xval, int iter)
 {
    std::ofstream mma;
    mma.open("Restart.dat");
    //print results
    mma << iter << "\n";
-   for (int i = 0; i < length; i++)
+   for (int i = 0; i < nVar; i++)
    {
       mma << xval[i] << "\n";
    }
-   for (int i = 0; i < length; i++)
+   for (int i = 0; i < nVar; i++)
    {
       mma << xo1[i] << "\n";
    }
-   for (int i = 0; i < length; i++)
+   for (int i = 0; i < nVar; i++)
    {
       mma << xo2[i] << "\n";
    }
-   for (int i = 0; i < length; i++)
+   for (int i = 0; i < nVar; i++)
    {
       mma << upp[i] << "\n";
    }
-   for (int i = 0; i < length; i++)
+   for (int i = 0; i < nVar; i++)
    {
       mma << low[i] << "\n";
    }
    mma.close();
 }
 
-double* MMA::get_Low()
+double* MMA::getLow()
 {
    return low;
 }
-double* MMA::get_Upp()
+double* MMA::getUpp()
 {
    return upp;
 }
 
-double MMA::get_KKT()
+double MMA::getKKT()
 {
    return kktnorm;
 }

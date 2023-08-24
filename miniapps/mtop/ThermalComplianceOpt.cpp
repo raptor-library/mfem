@@ -237,7 +237,7 @@ int main(int argc, char *argv[])
       }
       //--------------------------------------------------------------------------------
       // Set Up MMA
-      MMA MMAmain(nVar, nCon, 0, xxmin.GetData(), xxmax.GetData());
+      MMA MMAmain(nVar, nCon, 0, designVarVec.GetData(), xxmin.GetData(), xxmax.GetData());
       //--------------------------------------------------------------------------------
       std::cout<<"opt iter"<<std::endl;
 
@@ -560,8 +560,8 @@ int main(int argc, char *argv[])
          double con=vol/maxVolAllowed-1;                                      // V/V_max -1
          volgrad /= maxVolAllowed;
 
-         // MMA Routine: Update(iteration, design variables, objective, objective gradient, constraint(s), constraint gradients)
-         MMAmain.Update(i, designVarVec.GetData(), &ThermalCompliance, objgrad.GetData(), &con, volgrad.GetData());
+         // MMA Routine: Update(iteration, objective, objective gradient, constraint(s), constraint gradients,  design variables)
+         MMAmain.Update(i, &ThermalCompliance, objgrad.GetData(), &con, volgrad.GetData(), designVarVec.GetData());
          //std::cout << "Con = " << con << ", Obj = " << ThermalCompliance << std::endl;
          {
          mfem::ParaViewDataCollection paraview_dc2("topOptAft", pmesh);
