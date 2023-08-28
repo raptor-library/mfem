@@ -2,6 +2,120 @@
 
 namespace mfem {
 
+void PDEFilter::FSolve()
+{
+        
+    //    Define the solution vector x as a finite element grid function
+    //    corresponding to fespace. Initialize x with initial guess of zero.
+    ParGridFunction x(fes);
+    x = 0.0;
+
+    sol = solgf;
+
+    ess_tdofv.DeleteAll();
+
+    mfem::ConstantCoefficient filterRadius(filterRad);
+
+    //    Set up the linear form b(.) which corresponds to the right-hand side of
+    //    the FEM linear system.
+    if(b==nullptr)
+    {
+        b = new ParLinearForm(fes);
+
+        mfem::Coefficient * LoadCoeff = new GridFunctionCoefficient( designGF_ );
+        b->AddDomainIntegrator(new DomainLFIntegrator(*LoadCoeff));
+        b->Assemble();
+    }
+    
+    //    Set up the bilinear form a(.,.) on the finite element space
+    if(a==nullptr)
+    {
+        a = new ParBilinearForm(fes);
+     
+
+        // add diffusion integrators
+        a->AddDomainIntegrator(new DiffusionIntegrator(filterRadius));
+        a->AddDomainIntegrator(new MassIntegrator());
+        a->Assemble();
+        a->Finalize();
+    }
+
+    HypreParMatrix A;
+    HypreParVector B, X;
+
+        //allocate the preconditioner and the linear solver
+        if(prec==nullptr){
+            //prec = new HypreBoomerAMG();
+            prec = new HypreILU ();
+            prec->SetLevelOfFill(5);
+            prec->SetPrintLevel(print_level);
+        }
+
+        if(ls==nullptr){
+            //ls = new CGSolver(pmesh->GetComm());
+            ls = new GMRESSolver(pmesh->GetComm());
+            ls->SetAbsTol(linear_atol);
+            ls->SetRelTol(linear_rtol);
+            ls->SetMaxIter(linear_iter);
+            ls->SetPrintLevel(print_level);
+            ls->SetKDim(1000);
+            ls->SetPreconditioner(*prec);
+        }
+
+        a->FormLinearSystem(ess_tdofv, sol, *b, A, X, B);
+
+        ls->SetOperator(A);
+        ls->Mult(B, X);
+    
+
+    sol = X;     // copy solution
+    solgf.SetFromTrueDofs(sol);
+
+    delete(a);
+    a = nullptr;
+}
+
+void PDEFilter::ASolve(mfem::Vector& rhs)
+{
+    MFEM_ASSERT( ls != nullptr, "Liner solver does not exist"); 
+
+    adj = 0.0;
+    ess_tdofv.DeleteAll();
+
+    mfem::ConstantCoefficient filterRadius(filterRad);
+
+    if(a==nullptr)
+    {
+        a = new ParBilinearForm(fes);    
+
+        a->AddDomainIntegrator(new DiffusionIntegrator(filterRadius));
+        a->AddDomainIntegrator(new MassIntegrator());
+        a->Assemble();
+        a->Finalize();
+
+    }
+
+    HypreParMatrix A;
+    HypreParVector B, X;
+
+    //std::cout << "\n\n b= " << b->Size() << "\n\n"<<std::endl;
+    a->FormLinearSystem(ess_tdofv, sol, *b, A, X, B);
+
+    mfem::HypreParMatrix* tTransOp = (&A)->Transpose();
+
+    ls->SetOperator(*tTransOp);
+    ls->Mult(rhs, adj);              
+
+
+    delete tTransOp;
+    adjgf.SetFromTrueDofs(adj);
+
+    delete(a);
+    //delete b;
+
+    a = nullptr;
+    //b = nullptr;
+}
 
 void Diffusion_Solver::FSolve()
 {
@@ -222,7 +336,7 @@ double ThermalComplianceIntegrator::GetElementEnergy(
         tempvec.Add(std::pow(DesingVal, 3.0),gradT);
 
         // Mult gradTT^T \kappa GradT
-        energy=energy+w*(gradT*tempvec);
+        energy=energy+w*0.5*(gradT*tempvec);
     }
 
     return energy;
@@ -275,7 +389,7 @@ void ThermalComplianceIntegrator::AssembleElementVector(
         double cpl =(gradT*tempvec);
 
         el.CalcShape(ip,shapef);
-        elvect.Add(1.0*cpl*w,shapef);
+        elvect.Add(0.5*cpl*w,shapef);               // shapef from chain rule
     }
 }
 
@@ -325,7 +439,7 @@ void ThermalComplianceIntegrator_1::AssembleRHSElementVect(
 
         Vector dQdT(dof);
         dshape_xyz.Mult(tempvec, dQdT);
-        elvect.Add(2.0*w,dQdT);                              //2.0 because of gradT^T /kappa gradT
+        elvect.Add(0.5*2.0*w,dQdT);                              //2.0 because of gradT^T /kappa gradT
     }
 }
 
@@ -454,10 +568,10 @@ void VolIntegrator::AssembleElementVector(
         w=Tr.Weight();
         w = ip.weight * w;
 
-        double DesingVal = desfield->GetValue(Tr,ip);
+        //double DesingVal = desfield->GetValue(Tr,ip);
 
         el.CalcShape(ip,shapef);
-        elvect.Add(DesingVal*w,shapef);
+        elvect.Add(w,shapef);
     }
 }
 

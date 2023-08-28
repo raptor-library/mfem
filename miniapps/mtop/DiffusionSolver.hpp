@@ -42,6 +42,129 @@ private:
 
 };
 
+class PDEFilter
+{
+
+public:
+    PDEFilter(mfem::ParMesh* mesh_, int order_=2)
+    {
+        pmesh=mesh_;
+        int dim=pmesh->Dimension();
+        // TODO why not DG space
+        //fec = new DG_FECollection(order_, dim, BasisType::GaussLobatto);
+        fec = new H1_FECollection(order_,dim);
+        fes = new ParFiniteElementSpace(pmesh,fec);
+
+        sol.SetSize(fes->GetTrueVSize()); sol=0.0;
+        rhs.SetSize(fes->GetTrueVSize()); rhs=0.0;
+        adj.SetSize(fes->GetTrueVSize()); adj=0.0;
+
+        solgf.SetSpace(fes);
+        adjgf.SetSpace(fes);
+
+        SetLinearSolver();
+    }
+
+    ~PDEFilter()
+    {
+        delete ls;
+        delete prec;
+
+        delete fes;
+        delete fec;
+
+        delete b;
+
+        delete a;
+    }
+
+    /// Set the Linear Solver
+    void SetLinearSolver(double rtol=1e-8, double atol=1e-12, int miter=2000)
+    {
+        linear_rtol=rtol;
+        linear_atol=atol;
+        linear_iter=miter;
+    }
+
+    void freeMemory()
+    {
+        delete b;
+        b = nullptr;
+    }
+
+    /// Solves the forward problem.
+    void FSolve();
+
+    void ASolve(mfem::Vector& rhs);
+
+    /// Returns the solution
+    mfem::ParGridFunction& GetSolution(){return solgf;}
+
+    void SetDesignGF(     
+        mfem::ParGridFunction *  designGF )
+    {
+        designGF_ = designGF;
+
+        delete mDensCoeff;
+
+        mDensCoeff = new mfem::GridFunctionCoefficient(designGF_);
+    }
+
+    ParFiniteElementSpace * GetFES()
+    {
+        return fes;
+    }
+
+    /// Returns the solution vector.
+    mfem::Vector& GetSol(){return sol;}
+
+    void GetSol(ParGridFunction& sgf){
+        sgf.SetSpace(fes); sgf.SetFromTrueDofs(sol);}
+
+    /// Returns the adjoint solution vector.
+    mfem::Vector& GetAdj(){return adj;}
+
+    void GetAdj(ParGridFunction& agf){
+        agf.SetSpace(fes); agf.SetFromTrueDofs(adj);}
+
+
+private:
+    mfem::ParMesh* pmesh;
+
+    ParBilinearForm *a = nullptr;
+    ParLinearForm *b = nullptr;
+
+    //solution true vector
+    mfem::Vector sol;
+    mfem::Vector adj;
+    mfem::Vector rhs;
+    mfem::ParGridFunction solgf;
+    mfem::ParGridFunction adjgf;
+
+    mfem::ParGridFunction *  designGF_ = nullptr;
+    mfem::Coefficient*       mDensCoeff = nullptr;
+
+    mfem::FiniteElementCollection *fec;
+    mfem::ParFiniteElementSpace	  *fes;
+
+    //Linear solver parameters
+    double linear_rtol;
+    double linear_atol;
+    int linear_iter;
+
+    int print_level = 1;
+
+    const double alpha = 1.0;
+
+    double filterRad = 5e-4;
+
+    //mfem::HypreBoomerAMG *prec = nullptr; //preconditioner
+    mfem::HypreILU *prec = nullptr;
+    //mfem::CGSolver *ls = nullptr;  //linear solver
+    mfem::GMRESSolver *ls = nullptr;
+
+    mfem::Array<int> ess_tdofv;
+};
 
 class Diffusion_Solver
 {
