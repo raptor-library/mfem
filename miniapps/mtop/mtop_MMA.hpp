@@ -10,6 +10,205 @@ namespace mma
 class MMA
 {
 private:
+
+   // SubProblem Base Class
+   class SubProblemBase
+   {
+      //private:
+
+      //variables that are common to all subproblems
+      //protected:
+      
+
+      public:
+         SubProblemBase(){};
+         virtual ~SubProblemBase(){};
+         virtual void Perform() = 0;
+   };
+
+   // SubProblem according to Svanberg, implemented in serial
+   class SubProblemClassic : public SubProblemBase
+   {  
+      private:
+         int ittt, itto, itera;
+         double epsi, machineEpsilon, rez, rezet, delz, dz, dzet, azz, stmxx, stmalfa, stmbeta, stmalbe, sum, stmalbexx, stminv, steg, zold, zetold,  
+                residunorm, residumax, resinew;
+         double *sum1, *epsvecn, *epsvecm, *x, *y, *ux1, *xl1, *plam, *qlam, *gvec, *dpsidx, *rex, *rey, *relam, *rexsi, *reeta, *remu, *res, *residu1, 
+                *residu2, *residu, *GG, *Puxinv, *Qxlinv, *delx, *dely, *dellam, *dellamyi, *diagx, *diagy, *diaglam, *diaglamyi, *blam, *bb, *bb1, *Alam, *AA, *AA1, *solut, *dlam, *dx, *dy, *dxsi, *deta, *dmu, *Axx, *axz, *ds, *xx, *dxx, *stepxx, *stepalfa, *stepbeta, *xold, *yold, *lamold, *xsiold, *etaold, *muold, *sold;
+
+         int VariableA = 1;
+
+      void setSubProb(int nVar, int nCon)
+      {
+         //Allocate all subproblem variables
+         epsi = 1.0;
+         machineEpsilon = 1e-10;
+         epsvecn = new double[nVar];
+         epsvecm = new double[nCon];
+         x = new double[nVar];
+         y = new double[nCon];
+         ittt = itto = itera = 0;
+         ux1 = new double[nVar];
+         xl1 = new double[nVar];
+         plam = new double[nVar];
+         qlam = new double[nVar];
+         gvec = new double[nCon];
+         dpsidx = new double[nVar];
+         rex = new double[nVar];
+         rey = new double[nCon];
+         relam = new double[nCon];
+         rexsi = new double[nVar];
+         reeta = new double[nVar];
+         remu = new double[nCon];
+         res = new double[nCon];
+         residu1 = new double[nVar + nCon + 1];
+         residu2 = new double[3 * nCon + 2 * nVar + 1];
+         residu = new double[3 * nVar + 4 * nCon + 2];
+         GG = new double[nVar * nCon];
+         Puxinv = new double[nVar * nCon];
+         Qxlinv = new double[nVar * nCon];
+         delx = new double[nVar];
+         dely = new double[nCon];
+         dellam = new double[nCon];
+         dellamyi = new double[nCon];
+         diagx = new double[nVar];
+         diagy = new double[nCon];
+         diaglam = new double[nCon];
+         diaglamyi = new double[nCon];
+         blam = new double[nCon];
+         bb = new double[nVar + 1];
+         bb1 = new double[nCon + 1];
+         Alam = new double[nCon * nCon];
+         AA = new double[(nVar + 1) * (nVar + 1)];
+         AA1 = new double[(nCon + 1) * (nCon + 1)];
+         solut = new double[nVar + nCon + 1];
+         dlam = new double[nCon];
+         dx = new double[nVar];
+         dy = new double[nCon];
+         dxsi = new double[nVar];
+         deta = new double[nVar];
+         dmu = new double[nCon];
+         Axx = new double[nVar * nCon];
+         axz = new double[nVar];
+         ds = new double[nCon];
+         xx = new double[4 * nCon + 2 * nVar + 2];
+         dxx = new double[4 * nCon + 2 * nVar + 2];
+         stepxx = new double[4 * nCon + 2 * nVar + 2];
+         sum = 0;
+         sum1 = new double[nVar];
+         stepalfa = new double[nVar];
+         stepbeta = new double[nVar];
+         xold = new double[nVar];
+         yold = new double[nCon];
+         lamold = new double[nCon];
+         xsiold = new double[nVar];
+         etaold = new double[nVar];
+         muold = new double[nCon];
+         sold = new double[nCon];
+      }
+
+      void freeSubProb()
+      {
+         delete[] sum1;
+         delete[] epsvecn;
+         delete[] epsvecm;
+         delete[] x;
+         delete[] y;
+         delete[] ux1;
+         delete[] xl1;
+         delete[] plam;
+         delete[] qlam;
+         delete[] gvec;
+         delete[] dpsidx;
+         delete[] rex;
+         delete[] rey;
+         delete[] relam;
+         delete[] rexsi;
+         delete[] reeta;
+         delete[] remu;
+         delete[] res;
+         delete[] residu1;
+         delete[] residu2;
+         delete[] residu;
+         delete[] GG;
+         delete[] Puxinv;
+         delete[] Qxlinv;
+         delete[] delx;
+         delete[] dely;
+         delete[] dellam;
+         delete[] dellamyi;
+         delete[] diagx;
+         delete[] diagy;
+         delete[] diaglam;
+         delete[] diaglamyi;
+         delete[] blam;
+         delete[] bb;
+         delete[] bb1;
+         delete[] Alam;
+         delete[] AA;
+         delete[] AA1;
+         delete[] solut;
+         delete[] dlam;
+         delete[] dx;
+         delete[] dy;
+         delete[] dxsi;
+         delete[] deta;
+         delete[] dmu;
+         delete[] Axx;
+         delete[] axz;
+         delete[] ds;
+         delete[] xx;
+         delete[] dxx;
+         delete[] stepxx;
+         delete[] stepalfa;
+         delete[] stepbeta;
+         delete[] xold;
+         delete[] yold;
+         delete[] lamold;
+         delete[] xsiold;
+         delete[] etaold;
+         delete[] muold;
+         delete[] sold;
+      }
+
+      public:
+
+         SubProblemClassic(int nVar, int nCon)
+         {
+            this->setSubProb(nVar, nCon);
+         }
+         ~SubProblemClassic()
+         {
+            this->freeSubProb();
+         };
+         void Perform() override;
+         //void SetSomething();
+   };
+
+   // SubProblem according to Svanberg, implemented in parallel
+   class SubProblemClassicMPI : public SubProblemBase
+   {  
+      private:
+         int o = 0;
+
+      public:
+
+      SubProblemClassicMPI(){};
+      ~SubProblemClassicMPI(){};
+      void Perform() override;
+      void SetSomething();
+   };
+
+   enum SubProblemType
+   {
+      CLASSIC,
+      MPIClassic,
+      ENDENUM
+   };
+
+   SubProblemBase * mSubProblem = nullptr;
+
+
    // Local vectors
    double *a = nullptr, *c = nullptr, *d;
    double a0, zet, zetmma, z, zmma;
@@ -24,13 +223,14 @@ private:
    // Global: MMA-specific
    double epsimin, raa0, move, albefa, asyinit, asyincr, asydecr, xmamieps, lowmin, lowmax, uppmin, uppmax, zz;
    double *factor, *xmami, *pq0, *p, *q, *pq, *b, *PQ;
+   double *ux1, *xl1;
 
    // Global: Subproblem
-   int ittt, itto, itera;
-   double epsi, machineEpsilon, rez, rezet, delz, dz, dzet, azz, stmxx, stmalfa, stmbeta, stmalbe, sum, stmalbexx, stminv, steg, zold, zetold, residunorm, residumax, resinew;
-   double *sum1, *epsvecn, *epsvecm, *x, *y, *ux1, *xl1, *plam, *qlam, *gvec, *dpsidx, *rex, *rey, *relam, *rexsi, *reeta, *remu, *res, *residu1, *residu2, *residu, *GG, 
-          *Puxinv, *Qxlinv, *delx, *dely, *dellam, *dellamyi, *diagx, *diagy, *diaglam, *diaglamyi, *blam, *bb, *bb1, *Alam, *AA, *AA1, *solut, *dlam, *dx, *dy, *dxsi, *deta, 
-          *dmu, *Axx, *axz, *ds, *xx, *dxx, *stepxx, *stepalfa, *stepbeta, *xold, *yold, *lamold, *xsiold, *etaold, *muold, *sold;
+   
+   // double epsi, machineEpsilon, rez, rezet, delz, dz, dzet, azz, stmxx, stmalfa, stmbeta, stmalbe, sum, stmalbexx, stminv, steg, zold, zetold, residunorm, residumax, resinew;
+   // double *sum1, *epsvecn, *epsvecm, *x, *y, *ux1, *xl1, *plam, *qlam, *gvec, *dpsidx, *rex, *rey, *relam, *rexsi, *reeta, *remu, *res, *residu1, *residu2, *residu, *GG, 
+   //        *Puxinv, *Qxlinv, *delx, *dely, *dellam, *dellamyi, *diagx, *diagy, *diaglam, *diaglamyi, *blam, *bb, *bb1, *Alam, *AA, *AA1, *solut, *dlam, *dx, *dy, *dxsi, *deta, 
+   //        *dmu, *Axx, *axz, *ds, *xx, *dxx, *stepxx, *stepalfa, *stepbeta, *xold, *yold, *lamold, *xsiold, *etaold, *muold, *sold;
 
    // Global: Old design variables
    double *xo1, *xo2;
@@ -94,75 +294,77 @@ private:
       pq = new double[nVar * nCon];
       b = new double[nCon];
       PQ = new double[nCon * nVar];
-   }
-   void setSubProb(int nVar, int nCon)
-   {
-      //Allocate all subproblem variables
-      epsi = 1.0;
-      machineEpsilon = 1e-10;
-      epsvecn = new double[nVar];
-      epsvecm = new double[nCon];
-      x = new double[nVar];
-      y = new double[nCon];
-      ittt = itto = itera = 0;
       ux1 = new double[nVar];
       xl1 = new double[nVar];
-      plam = new double[nVar];
-      qlam = new double[nVar];
-      gvec = new double[nCon];
-      dpsidx = new double[nVar];
-      rex = new double[nVar];
-      rey = new double[nCon];
-      relam = new double[nCon];
-      rexsi = new double[nVar];
-      reeta = new double[nVar];
-      remu = new double[nCon];
-      res = new double[nCon];
-      residu1 = new double[nVar + nCon + 1];
-      residu2 = new double[3 * nCon + 2 * nVar + 1];
-      residu = new double[3 * nVar + 4 * nCon + 2];
-      GG = new double[nVar * nCon];
-      Puxinv = new double[nVar * nCon];
-      Qxlinv = new double[nVar * nCon];
-      delx = new double[nVar];
-      dely = new double[nCon];
-      dellam = new double[nCon];
-      dellamyi = new double[nCon];
-      diagx = new double[nVar];
-      diagy = new double[nCon];
-      diaglam = new double[nCon];
-      diaglamyi = new double[nCon];
-      blam = new double[nCon];
-      bb = new double[nVar + 1];
-      bb1 = new double[nCon + 1];
-      Alam = new double[nCon * nCon];
-      AA = new double[(nVar + 1) * (nVar + 1)];
-      AA1 = new double[(nCon + 1) * (nCon + 1)];
-      solut = new double[nVar + nCon + 1];
-      dlam = new double[nCon];
-      dx = new double[nVar];
-      dy = new double[nCon];
-      dxsi = new double[nVar];
-      deta = new double[nVar];
-      dmu = new double[nCon];
-      Axx = new double[nVar * nCon];
-      axz = new double[nVar];
-      ds = new double[nCon];
-      xx = new double[4 * nCon + 2 * nVar + 2];
-      dxx = new double[4 * nCon + 2 * nVar + 2];
-      stepxx = new double[4 * nCon + 2 * nVar + 2];
-      sum = 0;
-      sum1 = new double[nVar];
-      stepalfa = new double[nVar];
-      stepbeta = new double[nVar];
-      xold = new double[nVar];
-      yold = new double[nCon];
-      lamold = new double[nCon];
-      xsiold = new double[nVar];
-      etaold = new double[nVar];
-      muold = new double[nCon];
-      sold = new double[nCon];
    }
+   // void setSubProb(int nVar, int nCon)
+   // {
+   //    //Allocate all subproblem variables
+   //    epsi = 1.0;
+   //    machineEpsilon = 1e-10;
+   //    epsvecn = new double[nVar];
+   //    epsvecm = new double[nCon];
+   //    x = new double[nVar];
+   //    y = new double[nCon];
+   //    ittt = itto = itera = 0;
+   //    ux1 = new double[nVar];
+   //    xl1 = new double[nVar];
+   //    plam = new double[nVar];
+   //    qlam = new double[nVar];
+   //    gvec = new double[nCon];
+   //    dpsidx = new double[nVar];
+   //    rex = new double[nVar];
+   //    rey = new double[nCon];
+   //    relam = new double[nCon];
+   //    rexsi = new double[nVar];
+   //    reeta = new double[nVar];
+   //    remu = new double[nCon];
+   //    res = new double[nCon];
+   //    residu1 = new double[nVar + nCon + 1];
+   //    residu2 = new double[3 * nCon + 2 * nVar + 1];
+   //    residu = new double[3 * nVar + 4 * nCon + 2];
+   //    GG = new double[nVar * nCon];
+   //    Puxinv = new double[nVar * nCon];
+   //    Qxlinv = new double[nVar * nCon];
+   //    delx = new double[nVar];
+   //    dely = new double[nCon];
+   //    dellam = new double[nCon];
+   //    dellamyi = new double[nCon];
+   //    diagx = new double[nVar];
+   //    diagy = new double[nCon];
+   //    diaglam = new double[nCon];
+   //    diaglamyi = new double[nCon];
+   //    blam = new double[nCon];
+   //    bb = new double[nVar + 1];
+   //    bb1 = new double[nCon + 1];
+   //    Alam = new double[nCon * nCon];
+   //    AA = new double[(nVar + 1) * (nVar + 1)];
+   //    AA1 = new double[(nCon + 1) * (nCon + 1)];
+   //    solut = new double[nVar + nCon + 1];
+   //    dlam = new double[nCon];
+   //    dx = new double[nVar];
+   //    dy = new double[nCon];
+   //    dxsi = new double[nVar];
+   //    deta = new double[nVar];
+   //    dmu = new double[nCon];
+   //    Axx = new double[nVar * nCon];
+   //    axz = new double[nVar];
+   //    ds = new double[nCon];
+   //    xx = new double[4 * nCon + 2 * nVar + 2];
+   //    dxx = new double[4 * nCon + 2 * nVar + 2];
+   //    stepxx = new double[4 * nCon + 2 * nVar + 2];
+   //    sum = 0;
+   //    sum1 = new double[nVar];
+   //    stepalfa = new double[nVar];
+   //    stepbeta = new double[nVar];
+   //    xold = new double[nVar];
+   //    yold = new double[nCon];
+   //    lamold = new double[nCon];
+   //    xsiold = new double[nVar];
+   //    etaold = new double[nVar];
+   //    muold = new double[nCon];
+   //    sold = new double[nCon];
+   // }
 
    void freeGlobals()
    {
@@ -205,70 +407,72 @@ private:
       delete[] pq;
       delete[] b;
       delete[] PQ;
-   }
-   void freeSubProb()
-   {
-      delete[] sum1;
-      delete[] epsvecn;
-      delete[] epsvecm;
-      delete[] x;
-      delete[] y;
       delete[] ux1;
       delete[] xl1;
-      delete[] plam;
-      delete[] qlam;
-      delete[] gvec;
-      delete[] dpsidx;
-      delete[] rex;
-      delete[] rey;
-      delete[] relam;
-      delete[] rexsi;
-      delete[] reeta;
-      delete[] remu;
-      delete[] res;
-      delete[] residu1;
-      delete[] residu2;
-      delete[] residu;
-      delete[] GG;
-      delete[] Puxinv;
-      delete[] Qxlinv;
-      delete[] delx;
-      delete[] dely;
-      delete[] dellam;
-      delete[] dellamyi;
-      delete[] diagx;
-      delete[] diagy;
-      delete[] diaglam;
-      delete[] diaglamyi;
-      delete[] blam;
-      delete[] bb;
-      delete[] bb1;
-      delete[] Alam;
-      delete[] AA;
-      delete[] AA1;
-      delete[] solut;
-      delete[] dlam;
-      delete[] dx;
-      delete[] dy;
-      delete[] dxsi;
-      delete[] deta;
-      delete[] dmu;
-      delete[] Axx;
-      delete[] axz;
-      delete[] ds;
-      delete[] xx;
-      delete[] dxx;
-      delete[] stepxx;
-      delete[] stepalfa;
-      delete[] stepbeta;
-      delete[] xold;
-      delete[] yold;
-      delete[] lamold;
-      delete[] xsiold;
-      delete[] etaold;
-      delete[] muold;
-      delete[] sold;
    }
+   // void freeSubProb()
+   // {
+   //    delete[] sum1;
+   //    delete[] epsvecn;
+   //    delete[] epsvecm;
+   //    delete[] x;
+   //    delete[] y;
+   //    delete[] ux1;
+   //    delete[] xl1;
+   //    delete[] plam;
+   //    delete[] qlam;
+   //    delete[] gvec;
+   //    delete[] dpsidx;
+   //    delete[] rex;
+   //    delete[] rey;
+   //    delete[] relam;
+   //    delete[] rexsi;
+   //    delete[] reeta;
+   //    delete[] remu;
+   //    delete[] res;
+   //    delete[] residu1;
+   //    delete[] residu2;
+   //    delete[] residu;
+   //    delete[] GG;
+   //    delete[] Puxinv;
+   //    delete[] Qxlinv;
+   //    delete[] delx;
+   //    delete[] dely;
+   //    delete[] dellam;
+   //    delete[] dellamyi;
+   //    delete[] diagx;
+   //    delete[] diagy;
+   //    delete[] diaglam;
+   //    delete[] diaglamyi;
+   //    delete[] blam;
+   //    delete[] bb;
+   //    delete[] bb1;
+   //    delete[] Alam;
+   //    delete[] AA;
+   //    delete[] AA1;
+   //    delete[] solut;
+   //    delete[] dlam;
+   //    delete[] dx;
+   //    delete[] dy;
+   //    delete[] dxsi;
+   //    delete[] deta;
+   //    delete[] dmu;
+   //    delete[] Axx;
+   //    delete[] axz;
+   //    delete[] ds;
+   //    delete[] xx;
+   //    delete[] dxx;
+   //    delete[] stepxx;
+   //    delete[] stepalfa;
+   //    delete[] stepbeta;
+   //    delete[] xold;
+   //    delete[] yold;
+   //    delete[] lamold;
+   //    delete[] xsiold;
+   //    delete[] etaold;
+   //    delete[] muold;
+   //    delete[] sold;
+   // }
 
    void sanityCheck()
    {
@@ -277,14 +481,37 @@ private:
       //mfem_error(a == nullptr, "a is nullprt");
    }
 
+   void subProblemFactory( enum SubProblemType type = CLASSIC )
+   {
+      switch (type)
+      {
+         case CLASSIC:
+            //MMA::SubProblemClassic *tSub = new SubProblemClassic(nVar, nCon);
+
+            //tSub->Set...;
+            mSubProblem = new SubProblemClassic(nVar, nCon);
+            break;
+         case MPIClassic:
+            mSubProblem = new SubProblemClassicMPI();
+
+            //reinterpret_cast<SubProblemClassicMPI*>(mSubProblem)->Set.);
+            break;
+         default:
+            mfem::mfem_error("MMA::subProblemFactory() invalid subproblem type");
+            break;
+      }
+   }
+
 public:
    // Construct using defaults subproblem penalization
-   MMA(int nVar, int nCon, double *xval, double *xxmin, double *xxmax)
+   MMA(int nVar, int nCon, double *xval, double *xxmin, double *xxmax, enum SubProblemType type = CLASSIC )
    {
       this->setGlobals(nVar, nCon);
       this->setMMA(nVar, nCon);
-      this->setSubProb(nVar, nCon);
+      // this->setSubProb(nVar, nCon);
       this->initializeGlobals(nVar, nCon, xval, xxmin, xxmax);
+
+      this->subProblemFactory( CLASSIC );
    }
 
    //MMA(Comm, int nVar, int nCon, int iter)
@@ -299,7 +526,7 @@ public:
    {
        this->freeGlobals();
        this->freeMMA();
-       this->freeSubProb();
+       //this->freeSubProb();
    }
 
    void initializeGlobals(int nVariables, int nConstraints, double *xval, double *xxmin, double *xxmax)
@@ -308,49 +535,6 @@ public:
       nCon = nConstraints;
       xmin = xxmin;
       xmax = xxmax;
-
-      // if (iter == 0)
-      // {
-      //    for (int i = 0; i < nVar; i++)
-      //    {
-      //       xo1[i] = 0.0;
-      //       xo2[i] = 0.0;
-      //       low[i] = xmin[i];
-      //       upp[i] = xmax[i];
-      //    }
-      // }
-      // else
-      // {
-      //    std::ifstream input("Restart.dat");
-      //    input >> iter;
-      //    printf("iter = %d\n", iter);
-      //    for (int i = 0; i < nVar; i++)
-      //    {
-      //       input >> xval[i];
-      //       printf("xval[%d] = %f\n", i, xval[i]);
-      //    }
-      //    for (int i = 0; i < nVar; i++)
-      //    {
-      //       input >> xo1[i];
-      //       printf("xo1[%d] = %f\n", i, xo1[i]);
-      //    }
-      //    for (int i = 0; i < nVar; i++)
-      //    {
-      //       input >> xo2[i];
-      //       printf("xo2[%d] = %f\n", i, xo2[i]);
-      //    }
-      //    for (int i = 0; i < nVar; i++)
-      //    {
-      //       input >> upp[i];
-      //       printf("upp[%d] = %f\n", i, upp[i]);
-      //    }
-      //    for (int i = 0; i < nVar; i++)
-      //    {
-      //       input >> low[i];
-      //       printf("low[%d] = %f\n", i, low[i]);
-      //    }
-      //    input.close();
-      // }
 
       for (int i = 0; i < nCon; i++)
       {
@@ -384,8 +568,8 @@ public:
 
    // Options
    // Return necessary data for restart
-   void setRestart();
-   void Restart(double* xval, int iter);
+   void setRestart(double* xval, int iter, std::string name, std::string path = "./");
+   void outputRestart(double* xval, int iter, std::string name, std::string path = "./");
 
 };
 

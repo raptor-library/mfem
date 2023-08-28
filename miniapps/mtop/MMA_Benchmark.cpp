@@ -74,6 +74,7 @@ int main(int argc, char *argv[])
    // if a restart from a previous run is desired, set iter to the iteration
    // number of the previous run
    int iter = 0;
+   std::string name = "Restart.dat";
 
    // ----------- SET UP PROBLEM ------------
    for (int i = 0; i < nVar; i++)
@@ -91,7 +92,7 @@ int main(int argc, char *argv[])
    mma << xval[0] << "\n" << xval[1] << "\n" << xmax[0] << "\n" << xmax[1] << "\n" << xmin[0] << "\n" << xmin[1] << std::endl;
    Rosenbrock(xval, aR, bR, fval, dfdx, gx, dgdx);
 
-   //kktnorm = kkttol + 10;
+
    while (iter < maxiter)
    {
       
@@ -114,17 +115,20 @@ int main(int argc, char *argv[])
       // -------------- RESTART if desired ------------
       if (iter % restart == 0)
       {
-         MMAmain.Restart(xval, iter);
+         MMAmain.outputRestart(xval, iter, name);
       }
       iter++;
    }
-   //printf("Iteration %d: kktnorm = %f\n", iter, kktnorm);
    mma.close();
 
    return 0;
 }
 
-// The optimization problem
+
+
+
+
+
 void Rosenbrock(double* xval, double a, double b, double* const fval, double* const dfdx,
                 double* const gx, double* const dgdx)
 {
