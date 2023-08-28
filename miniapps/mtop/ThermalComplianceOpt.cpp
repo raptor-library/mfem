@@ -241,7 +241,7 @@ int main(int argc, char *argv[])
       }
       //--------------------------------------------------------------------------------
       // Set Up MMA
-      MMA MMAmain(nVar, nCon, 0, designVarVec.GetData(), xxmin.GetData(), xxmax.GetData());
+      MMA MMAmain(nVar, nCon, designVarVec.GetData(), xxmin.GetData(), xxmax.GetData());
       //--------------------------------------------------------------------------------
       std::cout<<"opt iter"<<std::endl;
 

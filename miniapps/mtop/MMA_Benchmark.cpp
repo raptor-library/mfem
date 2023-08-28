@@ -40,8 +40,8 @@
 //using namespace mfem;
 using namespace mma;
 
-void Rosenbrock(double* xval, double a, double b, double* fval, double* dfdx,
-                double* gx, double* dgdx);
+void Rosenbrock(double* xval, double a, double b, double* const fval, double* const dfdx,
+                double* const gx, double* const dgdx);
 
 int main(int argc, char *argv[])
 {
@@ -55,10 +55,10 @@ int main(int argc, char *argv[])
    int sx = 1;
    double* xval = new double[nVar];
 
-   double* fval = new double[1];
-   double* dfdx = new double[nVar];
-   double* gx = new double[nCon];
-   double* dgdx = new double[nVar * nCon];
+   double* const fval = new double[1];
+   double* const dfdx = new double[nVar];
+   double* const gx = new double[nCon];
+   double* const dgdx = new double[nVar * nCon];
    double* xmin = new double[nVar];
    double* xmax = new double[nVar];
    double* upper = new double[nVar];
@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
    }
    
    // ---------- CALL CONSTRUCTOR -----------
-   MMA MMAmain(nVar, nCon, iter, xval, xmin, xmax);
+   MMA MMAmain(nVar, nCon, xval, xmin, xmax);
    std::ofstream mma;
    mma.open("mma.dat");
 
@@ -125,8 +125,8 @@ int main(int argc, char *argv[])
 }
 
 // The optimization problem
-void Rosenbrock(double* xval, double a, double b, double* fval, double* dfdx,
-                double* gx, double* dgdx)
+void Rosenbrock(double* xval, double a, double b, double* const fval, double* const dfdx,
+                double* const gx, double* const dgdx)
 {
    // f = b*(y-x^2)^2 + (a-x)^2
    *fval = b * (xval[1] - xval[0]*xval[0])*(xval[1] - xval[0]*xval[0]) +

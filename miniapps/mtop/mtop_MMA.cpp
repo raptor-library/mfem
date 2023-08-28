@@ -49,7 +49,7 @@ namespace mma
 
 //MMA::MMA(MPI_Comm Comm,int n, int m, double * x, int sx) {}
 
-void MMA::Update(int iter, double* fval, double* dfdx, double* gx, double* dgdx, double* xval)
+void MMA::Update(int iter, double* const fval, double* const dfdx, double* const gx, double* const dgdx, double* xval)
 {
    //printf("fval = %f, ", fval[0]);
    //printf("dfdx = [%f %f], ", dfdx[0], dfdx[1]);
@@ -62,7 +62,7 @@ void MMA::Update(int iter, double* fval, double* dfdx, double* gx, double* dgdx,
 
 }
 
-void MMA::mmasub(int iter, double* fval, double* dfdx, double* gx, double* dgdx, double* xval)
+void MMA::mmasub(int iter, double* const fval, double* const dfdx, double* const gx, double* const dgdx, double* xval)
 {
    for (int i = 0; i < nVar; i++)
    {
@@ -917,7 +917,7 @@ void MMA::subsolv()
    //results.close();
 }
 
-void MMA::kktcheck(double* y, double* dfdx, double* gx, double* dgdx, double* x)
+void MMA::kktcheck(double* y, double* const dfdx, double* const gx, double* const dgdx, double* x)
 {
    //std::ofstream kkt;
    //kkt.open("KKT.dat", std::ios::app);
@@ -1037,4 +1037,10 @@ double MMA::getKKT()
 {
    return kktnorm;
 }
+
+void MMA::setRestart()
+{
+
+}
+
 } // end mma namespace

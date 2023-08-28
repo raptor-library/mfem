@@ -164,38 +164,6 @@ private:
       sold = new double[nCon];
    }
 
-   void sanityCheck()
-   {
-      //isFinite
-
-      //mfem_error(a == nullptr, "a is nullprt");
-   }
-
-public:
-   // Construct using defaults subproblem penalization
-   MMA(int nVar, int nCon, int iter, double *xval, double *xxmin, double *xxmax)
-   {
-      this->setGlobals(nVar, nCon);
-      this->setMMA(nVar, nCon);
-      this->setSubProb(nVar, nCon);
-      this->initializeGlobals(nVar, nCon, iter, xval, xxmin, xxmax);
-   }
-
-   //MMA(Comm, int nVar, int nCon, int iter)
-   //{
-   //   this->setGlobals(nVar, nCon);
-   //   this->setMMA(nVar, nCon);
-   //   this->setSubProb(nVar, nCon);
-   //   this->initializeGlobals(nVar, nCon, iter);
-   //}
-
-   ~MMA()
-   {
-       this->freeGlobals();
-       this->freeMMA();
-       this->freeSubProb();
-   }
-
    void freeGlobals()
    {
       delete[] xmin;
@@ -302,55 +270,87 @@ public:
       delete[] sold;
    }
 
-   void initializeGlobals(int nVariables, int nConstraints, int iter, double *xval, double *xxmin, double *xxmax)
+   void sanityCheck()
+   {
+      //isFinite
+
+      //mfem_error(a == nullptr, "a is nullprt");
+   }
+
+public:
+   // Construct using defaults subproblem penalization
+   MMA(int nVar, int nCon, double *xval, double *xxmin, double *xxmax)
+   {
+      this->setGlobals(nVar, nCon);
+      this->setMMA(nVar, nCon);
+      this->setSubProb(nVar, nCon);
+      this->initializeGlobals(nVar, nCon, xval, xxmin, xxmax);
+   }
+
+   //MMA(Comm, int nVar, int nCon, int iter)
+   //{
+   //   this->setGlobals(nVar, nCon);
+   //   this->setMMA(nVar, nCon);
+   //   this->setSubProb(nVar, nCon);
+   //   this->initializeGlobals(nVar, nCon, iter);
+   //}
+
+   ~MMA()
+   {
+       this->freeGlobals();
+       this->freeMMA();
+       this->freeSubProb();
+   }
+
+   void initializeGlobals(int nVariables, int nConstraints, double *xval, double *xxmin, double *xxmax)
    {
       nVar = nVariables;
       nCon = nConstraints;
       xmin = xxmin;
       xmax = xxmax;
 
-      if (iter == 0)
-      {
-         for (int i = 0; i < nVar; i++)
-         {
-            xo1[i] = 0.0;
-            xo2[i] = 0.0;
-            low[i] = xmin[i];
-            upp[i] = xmax[i];
-         }
-      }
-      else
-      {
-         std::ifstream input("Restart.dat");
-         input >> iter;
-         printf("iter = %d\n", iter);
-         for (int i = 0; i < nVar; i++)
-         {
-            input >> xval[i];
-            printf("xval[%d] = %f\n", i, xval[i]);
-         }
-         for (int i = 0; i < nVar; i++)
-         {
-            input >> xo1[i];
-            printf("xo1[%d] = %f\n", i, xo1[i]);
-         }
-         for (int i = 0; i < nVar; i++)
-         {
-            input >> xo2[i];
-            printf("xo2[%d] = %f\n", i, xo2[i]);
-         }
-         for (int i = 0; i < nVar; i++)
-         {
-            input >> upp[i];
-            printf("upp[%d] = %f\n", i, upp[i]);
-         }
-         for (int i = 0; i < nVar; i++)
-         {
-            input >> low[i];
-            printf("low[%d] = %f\n", i, low[i]);
-         }
-         input.close();
-      }
+      // if (iter == 0)
+      // {
+      //    for (int i = 0; i < nVar; i++)
+      //    {
+      //       xo1[i] = 0.0;
+      //       xo2[i] = 0.0;
+      //       low[i] = xmin[i];
+      //       upp[i] = xmax[i];
+      //    }
+      // }
+      // else
+      // {
+      //    std::ifstream input("Restart.dat");
+      //    input >> iter;
+      //    printf("iter = %d\n", iter);
+      //    for (int i = 0; i < nVar; i++)
+      //    {
+      //       input >> xval[i];
+      //       printf("xval[%d] = %f\n", i, xval[i]);
+      //    }
+      //    for (int i = 0; i < nVar; i++)
+      //    {
+      //       input >> xo1[i];
+      //       printf("xo1[%d] = %f\n", i, xo1[i]);
+      //    }
+      //    for (int i = 0; i < nVar; i++)
+      //    {
+      //       input >> xo2[i];
+      //       printf("xo2[%d] = %f\n", i, xo2[i]);
+      //    }
+      //    for (int i = 0; i < nVar; i++)
+      //    {
+      //       input >> upp[i];
+      //       printf("upp[%d] = %f\n", i, upp[i]);
+      //    }
+      //    for (int i = 0; i < nVar; i++)
+      //    {
+      //       input >> low[i];
+      //       printf("low[%d] = %f\n", i, low[i]);
+      //    }
+      //    input.close();
+      // }
 
       for (int i = 0; i < nCon; i++)
       {
@@ -369,12 +369,12 @@ public:
 
    }
 
-   void Update(int iter, double* fval, double* dfdx, double* gx, double* dgdx, double* xval);
+   void Update(int iter, double* const fval, double* const dfdx, double* const gx, double* const dgdx, double* xval);
 
    // Set and solve a subproblem: return new xval
-   void mmasub(int iter, double* fval, double* dfdx, double* gx, double* dgdx, double* xval);
+   void mmasub(int iter, double* const fval, double* const dfdx, double* const gx, double* const dgdx, double* xval);
 
-   void kktcheck(double* y, double* dfdx, double* gx, double* dgdx, double* x);
+   void kktcheck(double* y, double* const dfdx, double* const gx, double* const dgdx, double* x);
 
    void subsolv();
 
@@ -383,7 +383,8 @@ public:
    double getKKT();
 
    // Options
-   // Return necessary data for possible restart
+   // Return necessary data for restart
+   void setRestart();
    void Restart(double* xval, int iter);
 
 };
