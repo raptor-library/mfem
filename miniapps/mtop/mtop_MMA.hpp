@@ -18,64 +18,6 @@ private:
       ENDENUM
    };
 
-   // SubProblem Base Class
-   class SubProblemBase
-   {
-      protected:
-         MMA* mma;
-
-      public:
-         SubProblemBase(MMA* mma);
-         virtual ~SubProblemBase()
-         {
-            this->mma = nullptr;
-         };
-         virtual void Perform() = 0;
-   };
-
-   // SubProblem according to Svanberg, implemented in serial
-   class SubProblemClassic : public SubProblemBase
-   {  
-      private:
-         int ittt, itto, itera;
-         double epsi, rez, rezet, delz, dz, dzet, azz, stmxx, stmalfa, stmbeta, stmalbe, sum, stmalbexx, stminv, steg, zold, zetold,  
-                residunorm, residumax, resinew;
-         double *sum1, *epsvecn, *epsvecm, *ux1, *xl1, *plam, *qlam, *gvec, *dpsidx, *rex, *rey, *relam, *rexsi, *reeta, *remu, *res, *residu1, 
-                *residu2, *residu, *GG, *Puxinv, *Qxlinv, *delx, *dely, *dellam, *dellamyi, *diagx, *diagy, *diaglam, *diaglamyi, *blam, *bb, *bb1, *Alam, *AA, *AA1, *solut, *dlam, *dx, *dy, *dxsi, *deta, *dmu, *Axx, *axz, *ds, *xx, *dxx, *stepxx, *stepalfa, *stepbeta, *xold, *yold, *lamold, *xsiold, *etaold, *muold, *sold;
-
-         void setSubProb(int nVar, int nCon);
-         void freeSubProb();
-         double kktcheck(double* y, double* const dfdx, double* const gx, double* const dgdx, double* x);
-
-      public:
-
-         SubProblemClassic(int nVar, int nCon);
-         ~SubProblemClassic()
-         {
-            this->freeSubProb();
-         };
-         void Perform()  override;
-   };
-
-   // SubProblem according to Svanberg, implemented in parallel
-   class SubProblemClassicMPI : public SubProblemBase
-   {  
-      private:
-         void setSubProb(int nVar, int nCon){};
-         void freeSubProb(){};
-
-      public:
-         SubProblemClassicMPI(int nVar, int nCon);
-         ~SubProblemClassicMPI()
-         {
-            this->freeSubProb();
-         };
-         //void Perform() override;
-   };
-
-   //instance of parent class
-   SubProblemBase *mSubProblem = nullptr;
-
    // Private: MMA-specific
    double raa0, move, albefa, asyinit, asyincr, asydecr, xmamieps, lowmin, lowmax, uppmin, uppmax, zz;
    double *factor, *xmami, *pq0, *p, *q, *pq, *PQ;
@@ -83,7 +25,7 @@ private:
    // Global: Old design variables
    double *xo1, *xo2;
    //Convergence study
-   static double kktnorm;
+   double kktnorm;
    bool isInitialized = false;
 
    void setGlobals(int nVar, int nCon);
@@ -105,16 +47,8 @@ public:
    double *x, *y, *alfa, *beta, *xsi, *eta, *lam, *mu, *s;
 
 
-   // Construct using defaults subproblem penalization
-   MMA(int nVar, int nCon, double *xval, double *xxmin, double *xxmax, enum SubProblemType type = CLASSIC )
-   {
-      this->setGlobals(nVar, nCon);
-      this->setMMA(nVar, nCon);
-      // this->setSubProb(nVar, nCon);
-      this->initializeGlobals(nVar, nCon, xval, xxmin, xxmax);
-
-      this->subProblemFactory(nVar, nCon, CLASSIC );
-   }
+   // Construct using subproblem
+   MMA(int nVar, int nCon, double *xval, double *xxmin, double *xxmax, enum SubProblemType type = CLASSIC );
 
    //MMA(Comm, int nVar, int nCon, int iter)
    //{
@@ -129,6 +63,65 @@ public:
        this->freeGlobals();
        this->freeMMA();
    }
+
+   // SUBPROBLEM BASE CLASS
+   class SubProblemBase
+   {
+      protected:
+         MMA* mma_ptr;
+
+      public:
+         SubProblemBase(MMA* mma);
+         virtual ~SubProblemBase()
+         {
+            this->mma_ptr = nullptr;
+         };
+         virtual void Perform() = 0;
+   };
+
+   // SubProblem according to Svanberg, implemented in serial
+   class SubProblemClassic : public SubProblemBase
+   {  
+      private:
+         int ittt, itto, itera;
+         double epsi, rez, rezet, delz, dz, dzet, azz, stmxx, stmalfa, stmbeta, stmalbe, sum, stmalbexx, stminv, steg, zold, zetold,  
+                residunorm, residumax, resinew;
+         double *sum1, *epsvecn, *epsvecm, *ux1, *xl1, *plam, *qlam, *gvec, *dpsidx, *rex, *rey, *relam, *rexsi, *reeta, *remu, *res, *residu1, 
+                *residu2, *residu, *GG, *Puxinv, *Qxlinv, *delx, *dely, *dellam, *dellamyi, *diagx, *diagy, *diaglam, *diaglamyi, *blam, *bb, *bb1, *Alam, *AA, *AA1, *solut, *dlam, *dx, *dy, *dxsi, *deta, *dmu, *Axx, *axz, *ds, *xx, *dxx, *stepxx, *stepalfa, *stepbeta, *xold, *yold, *lamold, *xsiold, *etaold, *muold, *sold;
+
+         void setSubProb(int nVar, int nCon);
+         void freeSubProb();
+         double kktcheck(double* y, double* const dfdx, double* const gx, double* const dgdx, double* x);
+
+      public:
+
+         SubProblemClassic(MMA* mma, int nVar, int nCon);
+         ~SubProblemClassic()
+         {
+            this->freeSubProb();
+         };
+         void Perform()  override;
+   };
+
+   // SubProblem according to Svanberg, implemented in parallel
+   class SubProblemClassicMPI : public SubProblemBase
+   {  
+      private:
+         void setSubProb(int nVar, int nCon){};
+         void freeSubProb(){};
+
+      public:
+         SubProblemClassicMPI(MMA* mma, int nVar, int nCon);
+         ~SubProblemClassicMPI()
+         {
+            this->freeSubProb();
+         };
+         void Perform() override;
+   };
+
+   //instance of class
+   SubProblemBase *mSubProblem;
+
 
    void initializeGlobals(int nVariables, int nConstraints, double *xval, double *xxmin, double *xxmax)
    {

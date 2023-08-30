@@ -45,17 +45,24 @@ namespace mma
 
 //Constructors
 // ----------------------------------------------------------------------
-MMA::SubProblemBase::SubProblemBase(MMA* mma)
+MMA::MMA(int nVar, int nCon, double *xval, double *xxmin, double *xxmax, enum SubProblemType type )
 {
-   this->mma = mma;
+   this->setGlobals(nVar, nCon);
+   this->setMMA(nVar, nCon);
+   // this->setSubProb(nVar, nCon);
+   this->initializeGlobals(nVar, nCon, xval, xxmin, xxmax);
+
+   this->subProblemFactory(nVar, nCon, type);
 }
 
-MMA::SubProblemClassic::SubProblemClassic(int nVar, int nCon) : MMA::SubProblemBase(*this)
+MMA::SubProblemBase::SubProblemBase(MMA* mma) : mma_ptr(mma){}
+
+MMA::SubProblemClassic::SubProblemClassic(MMA* mma, int nVar, int nCon) : SubProblemBase(mma)
 {
    this->setSubProb(nVar, nCon);
 }
 
-MMA::SubProblemClassicMPI::SubProblemClassicMPI(int nVar, int nCon) : MMA::SubProblemBase(*this)
+MMA::SubProblemClassicMPI::SubProblemClassicMPI(MMA* mma, int nVar, int nCon) : SubProblemBase(mma)
 {
    this->setSubProb(nVar, nCon);
 }
@@ -212,119 +219,120 @@ void MMA::SubProblemClassic::Perform()
    itto = 0;
    epsi = 1;
    itera = 0;
-   z = 1;
-   zet = 1;
+   mma_ptr->z = 1;
+   //z = 1;
+   mma_ptr->zet = 1;
 
-   for (int i = 0; i < nVar; i++)
+   for (int i = 0; i < mma_ptr->nVar; i++)
    {
       epsvecn[i] = epsi;
-      x[i] = 0.5 * (alfa[i] + beta[i]);
-      xsi[i] = 1.0/(x[i] - alfa[i]);
-      xsi[i] = std::max(xsi[i], 1.0);
-      eta[i] = 1.0/(beta[i] - x[i]);
-      eta[i] = std::max(eta[i], 1.0);
+      mma_ptr->x[i] = 0.5 * (mma_ptr->alfa[i] + mma_ptr->beta[i]);
+      mma_ptr->xsi[i] = 1.0/(mma_ptr->x[i] - mma_ptr->alfa[i]);
+      mma_ptr->xsi[i] = std::max(mma_ptr->xsi[i], 1.0);
+      mma_ptr->eta[i] = 1.0/(mma_ptr->beta[i] - mma_ptr->x[i]);
+      mma_ptr->eta[i] = std::max(mma_ptr->eta[i], 1.0);
    }
-   for (int i = 0; i < nCon; i++)
+   for (int i = 0; i < mma_ptr->nCon; i++)
    {
       epsvecm[i] = epsi;
-      y[i] = 1.0;
-      lam[i] = 1.0;
-      mu[i] = std::max(1.0, 0.5 * c[i]);
-      s[i] = 1.0;
+      mma_ptr->y[i] = 1.0;
+      mma_ptr->lam[i] = 1.0;
+      mma_ptr->mu[i] = std::max(1.0, 0.5 * mma_ptr->c[i]);
+      mma_ptr->s[i] = 1.0;
    }
 
    //for (int Ik = 0; true; Ik++)
-   while (epsi > epsimin)
+   while (epsi > mma_ptr->epsimin)
    {
 
-      rez = a0 - zet;
-      for (int i = 0; i < nVar; i++)
+      rez = mma_ptr->a0 - mma_ptr->zet;
+      for (int i = 0; i < mma_ptr->nVar; i++)
       {
          epsvecn[i] = epsi;
-         ux1[i] = upp[i] - x[i];
+         ux1[i] = mma_ptr->upp[i] - mma_ptr->x[i];
          if (ux1[i] == 0)
          {
-            ux1[i] = machineEpsilon;
+            ux1[i] = mma_ptr->machineEpsilon;
          }
          else
          {
-            while (std::fabs(ux1[i]) <= machineEpsilon)
+            while (std::fabs(ux1[i]) <= mma_ptr->machineEpsilon)
             {
                ux1[i] *= 10;
             }
          }
-         xl1[i] = x[i] - low[i];
+         xl1[i] = mma_ptr->x[i] - mma_ptr->low[i];
          if (xl1[i] == 0)
          {
-            xl1[i] = machineEpsilon;
+            xl1[i] = mma_ptr->machineEpsilon;
          }
          else
          {
-            while (std::fabs(xl1[i]) <= machineEpsilon)
+            while (std::fabs(xl1[i]) <= mma_ptr->machineEpsilon)
             {
                xl1[i] *= 10;
             }
          }
          // plam = P' * lam, qlam = Q' * lam
-         plam[i] = p0[i];
-         qlam[i] = q0[i];
-         for (int j = 0; j < nCon; j++)
+         plam[i] = mma_ptr->p0[i];
+         qlam[i] = mma_ptr->q0[i];
+         for (int j = 0; j < mma_ptr->nCon; j++)
          {
-            plam[i] += P[j * nVar + i] * lam[j];
-            qlam[i] += Q[j * nVar + i] * lam[j];
+            plam[i] += mma_ptr->P[j * mma_ptr->nVar + i] * mma_ptr->lam[j];
+            qlam[i] += mma_ptr->Q[j * mma_ptr->nVar + i] * mma_ptr->lam[j];
          }
          dpsidx[i] = plam[i] / (ux1[i] * ux1[i]) - qlam[i] / (xl1[i] * xl1[i]);
-         rex[i] = dpsidx[i] - xsi[i] + eta[i];
-         rez -= a[i] * lam[i];
-         rexsi[i] = xsi[i] * (x[i] - alfa[i]) - epsvecn[i];
-         if (std::fabs(x[i]-alfa[i]) == 0)
+         rex[i] = dpsidx[i] - mma_ptr->xsi[i] + mma_ptr->eta[i];
+         rez -= mma_ptr->a[i] * mma_ptr->lam[i];
+         rexsi[i] = mma_ptr->xsi[i] * (mma_ptr->x[i] - mma_ptr->alfa[i]) - epsvecn[i];
+         if (std::fabs(mma_ptr->x[i]-mma_ptr->alfa[i]) == 0)
          {
-            rexsi[i] = xsi[i] * machineEpsilon - epsvecn[i];
+            rexsi[i] = mma_ptr->xsi[i] * mma_ptr->machineEpsilon - epsvecn[i];
          }
-         reeta[i] = eta[i] * (beta[i] - x[i]) - epsvecn[i];
-         if (std::fabs(beta[i] - x[i]) == 0)
+         reeta[i] = mma_ptr->eta[i] * (mma_ptr->beta[i] - mma_ptr->x[i]) - epsvecn[i];
+         if (std::fabs(mma_ptr->beta[i] - mma_ptr->x[i]) == 0)
          {
-            reeta[i] = eta[i] * machineEpsilon - epsvecn[i];;
+            reeta[i] = mma_ptr->eta[i] * mma_ptr->machineEpsilon - epsvecn[i];;
          }
          residu1[i] = rex[i];
-         residu2[nCon + i] = rexsi[i];
-         residu2[nCon + nVar + i] = reeta[i];
+         residu2[mma_ptr->nCon + i] = rexsi[i];
+         residu2[mma_ptr->nCon + mma_ptr->nVar + i] = reeta[i];
       }
-      for (int i = 0; i < nCon; i++)
+      for (int i = 0; i < mma_ptr->nCon; i++)
       {
          epsvecm[i] = epsi;
          // gvec = P/ux + Q/xl
-         for (int j = 0; j < nVar; j++)
+         for (int j = 0; j < mma_ptr->nVar; j++)
          {
-            gvec[i] += P[i * nVar + j] / ux1[j] + Q[i * nVar + j] / xl1[j];
+            gvec[i] += mma_ptr->P[i * mma_ptr->nVar + j] / ux1[j] + mma_ptr->Q[i * mma_ptr->nVar + j] / xl1[j];
          }
-         rey[i] = c[i] + d[i] * y[i] - mu[i] - lam[i];
-         relam[i] = gvec[i] - a[i] * z - y[i] + s[i] - b[i];
-         remu[i] = mu[i] * y[i] - epsvecm[i];
-         res[i] = lam[i] * s[i] - epsvecm[i];
+         rey[i] = mma_ptr->c[i] + mma_ptr->d[i] * mma_ptr->y[i] - mma_ptr->mu[i] - mma_ptr->lam[i];
+         relam[i] = gvec[i] - mma_ptr->a[i] * mma_ptr->z - mma_ptr->y[i] + mma_ptr->s[i] - mma_ptr->b[i];
+         remu[i] = mma_ptr->mu[i] * mma_ptr->y[i] - epsvecm[i];
+         res[i] = mma_ptr->lam[i] * mma_ptr->s[i] - epsvecm[i];
          residu2[i] = relam[i];
-         residu1[nVar + i] = rey[i];
-         residu2[nCon + 2 * nVar + i] = remu[i];
-         residu2[2 * nVar + 2 * nCon + 1 + i] = res[i];
+         residu1[mma_ptr->nVar + i] = rey[i];
+         residu2[mma_ptr->nCon + 2 * mma_ptr->nVar + i] = remu[i];
+         residu2[2 * mma_ptr->nVar + 2 * mma_ptr->nCon + 1 + i] = res[i];
       }
-      rezet = zet * z - epsi;
-      residu1[nVar + nCon] = rez;
-      residu2[2 * nVar + 2 * nCon] = rezet;
+      rezet = mma_ptr->zet * mma_ptr->z - epsi;
+      residu1[mma_ptr->nVar + mma_ptr->nCon] = rez;
+      residu2[2 * mma_ptr->nVar + 2 * mma_ptr->nCon] = rezet;
 
       // Concatenate the residuals
-      for (int i = 0; i < (nVar + nCon + 1); i++)
+      for (int i = 0; i < (mma_ptr->nVar + mma_ptr->nCon + 1); i++)
       {
          residu[i] = residu1[i];
       }
-      for (int i = 0; i < (2 * nVar + 3 * nCon + 1); i++)
+      for (int i = 0; i < (2 * mma_ptr->nVar + 3 * mma_ptr->nCon + 1); i++)
       {
-         residu[nVar + nCon + 1 + i] = residu2[i];
+         residu[mma_ptr->nVar + mma_ptr->nCon + 1 + i] = residu2[i];
       }
 
       //Get vector product and maximum absolute value
       residunorm = 0.0;
       residumax = 0.0;
-      for (int i = 0; i < (3 * nVar + 4 * nCon + 2); i++)
+      for (int i = 0; i < (3 * mma_ptr->nVar + 4 * mma_ptr->nCon + 2); i++)
       {
          residunorm += residu[i] * residu[i];
          residumax = std::max(residumax, std::abs(residu[i]));
@@ -337,172 +345,172 @@ void MMA::SubProblemClassic::Perform()
       while (residumax > 0.9 * epsi && ittt < 200)
       {
          ittt++;
-         for (int i = 0; i < nVar; i++)
+         for (int i = 0; i < mma_ptr->nVar; i++)
          {
-            ux1[i] = upp[i] - x[i];
+            ux1[i] = mma_ptr->upp[i] - mma_ptr->x[i];
             if (ux1[i] == 0)
             {
-               ux1[i] = machineEpsilon;
+               ux1[i] = mma_ptr->machineEpsilon;
             }
             else
             {
-               while (std::fabs(ux1[i]) <= machineEpsilon)
+               while (std::fabs(ux1[i]) <= mma_ptr->machineEpsilon)
                {
                   ux1[i] *= 10;
                }
             }
-            xl1[i] = x[i] - low[i];
+            xl1[i] = mma_ptr->x[i] - mma_ptr->low[i];
             if (xl1[i] == 0)
             {
-               xl1[i] = machineEpsilon;
+               xl1[i] = mma_ptr->machineEpsilon;
             }
             else
             {
-               while (std::fabs(xl1[i]) <= machineEpsilon)
+               while (std::fabs(xl1[i]) <= mma_ptr->machineEpsilon)
                {
                   xl1[i] *= 10;
                }
             }
             // plam = P' * lam, qlam = Q' * lam
-            plam[i] = p0[i];
-            qlam[i] = q0[i];
-            for (int j = 0; j < nCon; j++)
+            plam[i] = mma_ptr->p0[i];
+            qlam[i] = mma_ptr->q0[i];
+            for (int j = 0; j < mma_ptr->nCon; j++)
             {
-               plam[i] += P[j * nVar + i] * lam[j];
-               qlam[i] += Q[j * nVar + i] * lam[j];
+               plam[i] += mma_ptr->P[j * mma_ptr->nVar + i] * mma_ptr->lam[j];
+               qlam[i] += mma_ptr->Q[j * mma_ptr->nVar + i] * mma_ptr->lam[j];
             }
             dpsidx[i] = plam[i] / (ux1[i] * ux1[i]) - qlam[i] / (xl1[i] * xl1[i]);
             // NaN-Avoidance
-            if (std::fabs(x[i] - alfa[i]) < machineEpsilon)
+            if (std::fabs(mma_ptr->x[i] - mma_ptr->alfa[i]) < mma_ptr->machineEpsilon)
             {
-               if (std::fabs(beta[i] - x[i]) < machineEpsilon)
+               if (std::fabs(mma_ptr->beta[i] - mma_ptr->x[i]) < mma_ptr->machineEpsilon)
                {
                   delx[i] = dpsidx[i];
-                  diagx[i] = 2 * (plam[i] / (ux1[i] * ux1[i] * ux1[i]) + qlam[i] / (xl1[i] * xl1[i] * xl1[i])) + xsi[i] / machineEpsilon + eta[i] / machineEpsilon;
+                  diagx[i] = 2 * (plam[i] / (ux1[i] * ux1[i] * ux1[i]) + qlam[i] / (xl1[i] * xl1[i] * xl1[i])) + mma_ptr->xsi[i] / mma_ptr->machineEpsilon + mma_ptr->eta[i] / mma_ptr->machineEpsilon;
                }
                else
                {
-                  delx[i] = dpsidx[i] - epsvecn[i] / machineEpsilon + epsvecn[i] / (beta[i] - x[i]);
-                  diagx[i] = 2 * (plam[i] / (ux1[i] * ux1[i] * ux1[i]) + qlam[i] / (xl1[i] * xl1[i] * xl1[i])) + xsi[i] / (x[i] - alfa[i]) + eta[i] / (beta[i] - x[i]);
+                  delx[i] = dpsidx[i] - epsvecn[i] / mma_ptr->machineEpsilon + epsvecn[i] / (mma_ptr->beta[i] - mma_ptr->x[i]);
+                  diagx[i] = 2 * (plam[i] / (ux1[i] * ux1[i] * ux1[i]) + qlam[i] / (xl1[i] * xl1[i] * xl1[i])) + mma_ptr->xsi[i] / (mma_ptr->x[i] - mma_ptr->alfa[i]) + mma_ptr->eta[i] / (mma_ptr->beta[i] - mma_ptr->x[i]);
                }
             }
-            else if (std::fabs(beta[i] - x[i]) < machineEpsilon)
+            else if (std::fabs(mma_ptr->beta[i] - mma_ptr->x[i]) < mma_ptr->machineEpsilon)
             {
-               delx[i] = dpsidx[i] - epsvecn[i] / (x[i] - alfa[i]) + epsvecn[i] / machineEpsilon;
-               diagx[i] = 2 * (plam[i] / (ux1[i] * ux1[i] * ux1[i]) + qlam[i] / (xl1[i] * xl1[i] * xl1[i])) + xsi[i] / (x[i] - alfa[i]) + eta[i] / machineEpsilon;
+               delx[i] = dpsidx[i] - epsvecn[i] / (mma_ptr->x[i] - mma_ptr->alfa[i]) + epsvecn[i] / mma_ptr->machineEpsilon;
+               diagx[i] = 2 * (plam[i] / (ux1[i] * ux1[i] * ux1[i]) + qlam[i] / (xl1[i] * xl1[i] * xl1[i])) + mma_ptr->xsi[i] / (mma_ptr->x[i] - mma_ptr->alfa[i]) + mma_ptr->eta[i] / mma_ptr->machineEpsilon;
             }
             else
             {
-               delx[i] = dpsidx[i] - epsvecn[i] / (x[i] - alfa[i]) + epsvecn[i] / (beta[i] - x[i]);
-               diagx[i] = 2 * (plam[i] / (ux1[i] * ux1[i] * ux1[i]) + qlam[i] / (xl1[i] * xl1[i] * xl1[i])) + xsi[i] / (x[i] - alfa[i]) + eta[i] / (beta[i] - x[i]);
+               delx[i] = dpsidx[i] - epsvecn[i] / (mma_ptr->x[i] - mma_ptr->alfa[i]) + epsvecn[i] / (mma_ptr->beta[i] - mma_ptr->x[i]);
+               diagx[i] = 2 * (plam[i] / (ux1[i] * ux1[i] * ux1[i]) + qlam[i] / (xl1[i] * xl1[i] * xl1[i])) + mma_ptr->xsi[i] / (mma_ptr->x[i] - mma_ptr->alfa[i]) + mma_ptr->eta[i] / (mma_ptr->beta[i] - mma_ptr->x[i]);
             }
          }
 
-         delz = a0 - epsi / z;
-         for (int i = 0; i < nCon; i++)
+         delz = mma_ptr->a0 - epsi / mma_ptr->z;
+         for (int i = 0; i < mma_ptr->nCon; i++)
          {
             gvec[i] = 0.0;
             // gvec = P/ux + Q/xl
-            for (int j = 0; j < nVar; j++)
+            for (int j = 0; j < mma_ptr->nVar; j++)
             {
-               gvec[i] += P[i * nVar + j] / ux1[j] + Q[i * nVar + j] / xl1[j];
-               Puxinv[i * nVar + j] = P[i * nVar + j] / (ux1[j] * ux1[j]);
-               Qxlinv[i * nVar + j] = Q[i * nVar + j] / (xl1[j] * xl1[j]);
+               gvec[i] += mma_ptr->P[i * mma_ptr->nVar + j] / ux1[j] + mma_ptr->Q[i * mma_ptr->nVar + j] / xl1[j];
+               Puxinv[i * mma_ptr->nVar + j] = mma_ptr->P[i * mma_ptr->nVar + j] / (ux1[j] * ux1[j]);
+               Qxlinv[i * mma_ptr->nVar + j] = mma_ptr->Q[i * mma_ptr->nVar + j] / (xl1[j] * xl1[j]);
 
-               GG[i * nVar + j] = Puxinv[i * nVar + j] - Qxlinv[i * nVar + j];
+               GG[i * mma_ptr->nVar + j] = Puxinv[i * mma_ptr->nVar + j] - Qxlinv[i * mma_ptr->nVar + j];
             }
 
-            dely[i] = c[i] + d[i] * y[i] - lam[i] - epsvecm[i] / y[i];
-            delz -= a[i] * lam[i];
-            dellam[i] = gvec[i] - a[i] * z - y[i] - b[i] + epsvecm[i] / lam[i];
-            diagy[i] = d[i] + mu[i] / y[i];
+            dely[i] = mma_ptr->c[i] + mma_ptr->d[i] * mma_ptr->y[i] - mma_ptr->lam[i] - epsvecm[i] / mma_ptr->y[i];
+            delz -= mma_ptr->a[i] * mma_ptr->lam[i];
+            dellam[i] = gvec[i] - mma_ptr->a[i] * mma_ptr->z - mma_ptr->y[i] - mma_ptr->b[i] + epsvecm[i] / mma_ptr->lam[i];
+            diagy[i] = mma_ptr->d[i] + mma_ptr->mu[i] / mma_ptr->y[i];
             //diagyinv[i] = 1.0 / diagy[i];
-            diaglam[i] = s[i] / lam[i];
+            diaglam[i] = mma_ptr->s[i] / mma_ptr->lam[i];
             diaglamyi[i] = diaglam[i] + 1.0 / diagy[i];
          }
 
-         if (nCon < nVar)
+         if (mma_ptr->nCon < mma_ptr->nVar)
          {
             // blam = dellam + dely./diagy - GG*(delx./diagx);
             // bb = [blam; delz];
-            for (int j = 0; j < nCon; j++)
+            for (int j = 0; j < mma_ptr->nCon; j++)
             {
                sum = 0.0;
-               for (int i = 0; i < nVar; i++)
+               for (int i = 0; i < mma_ptr->nVar; i++)
                {
-                  sum += GG[j * nVar + i] * (delx[i] / diagx[i]);
+                  sum += GG[j * mma_ptr->nVar + i] * (delx[i] / diagx[i]);
                }
                blam[j] = dellam[j] + dely[j] / diagy[j] - sum;
                bb1[j] = blam[j];
             }
-            bb1[nCon] = delz;            
+            bb1[mma_ptr->nCon] = delz;            
 
             // Alam = spdiags(diaglamyi,0,m,m) + GG*spdiags(diagxinv,0,n,n)*GG';
-            for (int i = 0; i < nCon; i++)
+            for (int i = 0; i < mma_ptr->nCon; i++)
             {
                // Axx = GG*spdiags(diagxinv,0,n,n);
-               for (int k = 0; k < nVar; k++)
+               for (int k = 0; k < mma_ptr->nVar; k++)
                {
-                  Axx[i * nVar + k] = GG[k * nCon + i] / diagx[k];
+                  Axx[i * mma_ptr->nVar + k] = GG[k * mma_ptr->nCon + i] / diagx[k];
                }
             }
             // Alam = spdiags(diaglamyi,0,m,m) + Axx*GG';
-            for (int i = 0; i < nCon; i++)
+            for (int i = 0; i < mma_ptr->nCon; i++)
             {
-               for (int j = 0; j < nCon; j++)
+               for (int j = 0; j < mma_ptr->nCon; j++)
                {
-                  Alam[i * nCon + j] = 0.0;
-                  for (int k = 0; k < nVar; k++)
+                  Alam[i * mma_ptr->nCon + j] = 0.0;
+                  for (int k = 0; k < mma_ptr->nVar; k++)
                   {
-                     Alam[i * nCon + j] += Axx[i * nVar + k] * GG[j * nVar + k];
+                     Alam[i * mma_ptr->nCon + j] += Axx[i * mma_ptr->nVar + k] * GG[j * mma_ptr->nVar + k];
                   }
                   if (i == j)
                   {
-                     Alam[i * nCon + j] += diaglamyi[i];
+                     Alam[i * mma_ptr->nCon + j] += diaglamyi[i];
                   }
                }
             }
             // AA1 = [Alam     a
             //       a'    -zet/z];
-            for (int i = 0; i < nCon; i++)
+            for (int i = 0; i < mma_ptr->nCon; i++)
             {
-               for (int j = 0; j < nCon; j++)
+               for (int j = 0; j < mma_ptr->nCon; j++)
                {
-                  AA1[i * nCon + j] = Alam[i * nCon + j];
+                  AA1[i * mma_ptr->nCon + j] = Alam[i * mma_ptr->nCon + j];
                }
-               AA1[nCon * nCon + i] = a[i];
-               AA1[nCon * nCon + nCon + i] = a[i];
+               AA1[mma_ptr->nCon * mma_ptr->nCon + i] = mma_ptr->a[i];
+               AA1[mma_ptr->nCon * mma_ptr->nCon + mma_ptr->nCon + i] = mma_ptr->a[i];
             }
-            AA1[nCon * nCon + nCon + nCon] = -zet / z;                              
+            AA1[mma_ptr->nCon * mma_ptr->nCon + mma_ptr->nCon + mma_ptr->nCon] = -mma_ptr->zet / mma_ptr->z;           
 
             // ----------------------------------------------------------------------------
             //solut = AA1\bb1 --> solve linear system of equations using LAPACK
             int info;
-            int nLAP = nCon + 1;
+            int nLAP = mma_ptr->nCon + 1;
             int nrhs = 1;
             int lda = nLAP;
             int ldb = nLAP;
             int* ipiv = new int[nLAP];
             dgesv_(&nLAP, &nrhs, AA1, &lda, ipiv, bb1, &ldb, &info);
             delete[] ipiv;
-            for (int i = 0; i < (nCon + 1); i++)
+            for (int i = 0; i < (mma_ptr->nCon + 1); i++)
             {
                solut[i] = bb1[i];
             }
             // ----------------------------------------------------------------------------
             //dlam = solut(1:nCon);
-            for (int i = 0; i < nCon; i++)
+            for (int i = 0; i < mma_ptr->nCon; i++)
             {
                dlam[i] = solut[i];
             }
-            dz = solut[nCon];
+            dz = solut[mma_ptr->nCon];
             //dx = -(GG'*dlam)./diagx - delx./diagx;
-            for (int i = 0; i < nVar; i++)
+            for (int i = 0; i < mma_ptr->nVar; i++)
             {
                sum = 0.0;
-               for (int j = 0; j < nCon; j++)
+               for (int j = 0; j < mma_ptr->nCon; j++)
                {
-                  sum += GG[j * nVar + i] * dlam[j];
+                  sum += GG[j * mma_ptr->nVar + i] * dlam[j];
                }
                dx[i] = -sum / diagx[i] - delx[i] / diagx[i];           
             }
@@ -510,175 +518,175 @@ void MMA::SubProblemClassic::Perform()
          else
          {
             sum = 0.0;
-            for (int i = 0; i < nCon; i++)
+            for (int i = 0; i < mma_ptr->nCon; i++)
             {
                //diaglamyiinv[i] = 1.0 / diaglamyi[i];
                dellamyi[i] = dellam[i] + dely[i] / diagy[i];
                // azz = zet/z + a'*(a./diaglamyi)
-               sum += a[i] * (a[i] / diaglamyi[i]);
+               sum += mma_ptr->a[i] * (mma_ptr->a[i] / diaglamyi[i]);
             }
-            azz = zet / z + sum;
+            azz = mma_ptr->zet / mma_ptr->z + sum;
             // Axx = spdiags(diagx,0,nVar,nVar) + GG'*spdiags(diaglamyiinv,0,nCon,nCon)*GG;
             // AA = [Axx      axz
             //       axz'     azz];
-            for (int i = 0; i < nVar; i++)
+            for (int i = 0; i < mma_ptr->nVar; i++)
             {
                // Axx =  GG'*spdiags(diaglamyiinv,0,nCon,nCon);
-               for (int k = 0; k < nCon; k++)
+               for (int k = 0; k < mma_ptr->nCon; k++)
                {
-                  Axx[i * nCon + k] = GG[k * nVar + i] / diaglamyi[k];
+                  Axx[i * mma_ptr->nCon + k] = GG[k * mma_ptr->nVar + i] / diaglamyi[k];
                }
                sum = 0.0;
                // axz = -GG'*(a./diaglamyi)
-               for (int j = 0; j < nCon; j++)
+               for (int j = 0; j < mma_ptr->nCon; j++)
                {
-                  sum -= GG[j * nVar + i] * (a[j] / diaglamyi[j]);
+                  sum -= GG[j * mma_ptr->nVar + i] * (mma_ptr->a[j] / diaglamyi[j]);
                }
                axz[i] = sum;
             }
             //Assemble matrix AA
-            for (int i = 0; i < (nVar + 1); i++)
+            for (int i = 0; i < (mma_ptr->nVar + 1); i++)
             {
-               for (int j = 0; j < (nVar + 1); j++)
+               for (int j = 0; j < (mma_ptr->nVar + 1); j++)
                {
                   // AA = [Axx  .
                   //       .    .]
-                  AA[i * (nVar + 1) + j] = 0.0;
-                  if (i < nVar && j < nVar)
+                  AA[i * (mma_ptr->nVar + 1) + j] = 0.0;
+                  if (i < mma_ptr->nVar && j < mma_ptr->nVar)
                   {
                      // Axx = Axx*GG
-                     for (int k = 0; k < nCon; k++)
+                     for (int k = 0; k < mma_ptr->nCon; k++)
                      {
-                        AA[i * (nVar + 1) + j] += Axx[i * nCon + k] * GG[k * nVar + j];
+                        AA[i * (mma_ptr->nVar + 1) + j] += Axx[i * mma_ptr->nCon + k] * GG[k * mma_ptr->nVar + j];
                      }
                      // Axx = Axx + spdiags(diagx,0,nVar,nVar)
                      if (i == j)
                      {
-                        AA[i * (nVar + 1) + j] += diagx[j];
+                        AA[i * (mma_ptr->nVar + 1) + j] += diagx[j];
                      }
                   }
                   // AA = [Axx  axz
                   //       axz' azz]
-                  else if (i < nVar && j == nVar)
+                  else if (i < mma_ptr->nVar && j == mma_ptr->nVar)
                   {
-                     AA[i * (nVar + 1) + j] = axz[i];
+                     AA[i * (mma_ptr->nVar + 1) + j] = axz[i];
                   }
-                  else if (i == nVar && j < nVar)
+                  else if (i == mma_ptr->nVar && j < mma_ptr->nVar)
                   {
-                     AA[i * (nVar + 1) + j] = axz[j];
+                     AA[i * (mma_ptr->nVar + 1) + j] = axz[j];
                   }
                   else
                   {
-                     AA[i * (nVar + 1) + j] = azz;
+                     AA[i * (mma_ptr->nVar + 1) + j] = azz;
                   }
                }
             }
             // bb = [-bx'; -bz]
             // bx = delx - GG'*(dellamyi./diaglamyi)
             // bz = delz - a'*(dellamyi./diaglamyi)
-            for (int i = 0; i < nVar; i++)
+            for (int i = 0; i < mma_ptr->nVar; i++)
             {
                sum = 0.0;
-               for (int j = 0; j < nCon; j++)
+               for (int j = 0; j < mma_ptr->nCon; j++)
                {
-                  sum += GG[j * nVar + i] * (dellamyi[j] / diaglamyi[j]);
+                  sum += GG[j * mma_ptr->nVar + i] * (dellamyi[j] / diaglamyi[j]);
                }
                bb[i] = -(delx[i] + sum);
             }
             sum = 0.0;
-            for (int i = 0; i < nCon; i++)
+            for (int i = 0; i < mma_ptr->nCon; i++)
             {
-               sum += a[i] * (dellamyi[i] / diaglamyi[i]);
+               sum += mma_ptr->a[i] * (dellamyi[i] / diaglamyi[i]);
             }
-            bb[nVar] = -(delz - sum);
+            bb[mma_ptr->nVar] = -(delz - sum);
             // ----------------------------------------------------------------------------
             //solut = AA\bb --> solve linear system of equations using LAPACK
             int info;
-            int nLAP = nVar + 1;
+            int nLAP = mma_ptr->nVar + 1;
             int nrhs = 1;
             int lda = nLAP;
             int ldb = nLAP;
             int* ipiv = new int[nLAP];
             dgesv_(&nLAP, &nrhs, AA, &lda, ipiv, bb, &ldb, &info);
             delete[] ipiv;
-            for (int i = 0; i < (nVar + 1); i++)
+            for (int i = 0; i < (mma_ptr->nVar + 1); i++)
             {
                solut[i] = bb[i];
             }
             // ----------------------------------------------------------------------------
             //dx = solut(1:nVar);
-            for (int i = 0; i < nVar; i++)
+            for (int i = 0; i < mma_ptr->nVar; i++)
             {
                dx[i] = solut[i];
             }
-            dz = solut[nVar];
+            dz = solut[mma_ptr->nVar];
             //dlam = (GG*dx)./diaglamyi - dz*(a./diaglamyi) + dellamyi./diaglamyi;
-            for (int i = 0; i < nCon; i++)
+            for (int i = 0; i < mma_ptr->nCon; i++)
             {
                sum = 0.0;
-               for (int j = 0; j < nVar; j++)
+               for (int j = 0; j < mma_ptr->nVar; j++)
                {
-                  sum += GG[i * nVar + j] * dx[j];
+                  sum += GG[i * mma_ptr->nVar + j] * dx[j];
                }
-               dlam[i] = sum / diaglamyi[i] - dz * (a[i] / diaglamyi[i]) + dellamyi[i] / diaglamyi[i];
+               dlam[i] = sum / diaglamyi[i] - dz * (mma_ptr->a[i] / diaglamyi[i]) + dellamyi[i] / diaglamyi[i];
             }
          }
 
-         for (int i = 0; i < nCon; i++)
+         for (int i = 0; i < mma_ptr->nCon; i++)
          {
             dy[i] = -dely[i] / diagy[i] + dlam[i] / diagy[i];
-            dmu[i] = -mu[i] + epsvecm[i] / y[i] - (mu[i] * dy[i]) / y[i];
-            ds[i] = -s[i] + epsvecm[i] / lam[i] - (s[i] * dlam[i]) / lam[i];
+            dmu[i] = -mma_ptr->mu[i] + epsvecm[i] / mma_ptr->y[i] - (mma_ptr->mu[i] * dy[i]) / mma_ptr->y[i];
+            ds[i] = -mma_ptr->s[i] + epsvecm[i] / mma_ptr->lam[i] - (mma_ptr->s[i] * dlam[i]) / mma_ptr->lam[i];
             // xx = [y z lam xsi eta mu zet s]
             // dxx = [dy dz dlam dxsi deta dmu dzet ds]
-            xx[i] = y[i];
-            xx[nCon + 1 + i] = lam[i];
-            xx[2 * nCon + 1 + 2 * nVar + i] = mu[i];
-            xx[3 * nCon + 2 * nVar + 2 + i] = s[i];
+            xx[i] = mma_ptr->y[i];
+            xx[mma_ptr->nCon + 1 + i] = mma_ptr->lam[i];
+            xx[2 * mma_ptr->nCon + 1 + 2 * mma_ptr->nVar + i] = mma_ptr->mu[i];
+            xx[3 * mma_ptr->nCon + 2 * mma_ptr->nVar + 2 + i] = mma_ptr->s[i];
             dxx[i] = dy[i];
-            dxx[nCon + 1 + i] = dlam[i];
-            dxx[2 * nCon + 1 + 2 * nVar + i] = dmu[i];
-            dxx[3 * nCon + 2 * nVar + 2 + i] = ds[i];
+            dxx[mma_ptr->nCon + 1 + i] = dlam[i];
+            dxx[2 * mma_ptr->nCon + 1 + 2 * mma_ptr->nVar + i] = dmu[i];
+            dxx[3 * mma_ptr->nCon + 2 * mma_ptr->nVar + 2 + i] = ds[i];
          }
-         xx[nCon] = z;
-         xx[3 * nCon + 2 * nVar + 1] = zet;
-         dxx[nCon] = dz;
-         dxx[3 * nCon + 2 * nVar + 1] = dzet;
-         for (int i = 0; i < nVar; i++)
+         xx[mma_ptr->nCon] = mma_ptr->z;
+         xx[3 * mma_ptr->nCon + 2 * mma_ptr->nVar + 1] = mma_ptr->zet;
+         dxx[mma_ptr->nCon] = dz;
+         dxx[3 * mma_ptr->nCon + 2 * mma_ptr->nVar + 1] = dzet;
+         for (int i = 0; i < mma_ptr->nVar; i++)
          {
             // NaN-Avoidance
-            if (std::fabs(x[i] - alfa[i]) < machineEpsilon)
+            if (std::fabs(mma_ptr->x[i] - mma_ptr->alfa[i]) < mma_ptr->machineEpsilon)
             {
-               if (std::fabs(beta[i] - x[i]) < machineEpsilon)
+               if (std::fabs(mma_ptr->beta[i] - mma_ptr->x[i]) < mma_ptr->machineEpsilon)
                {
-                  dxsi[i] = -xsi[i] + epsvecn[i] / machineEpsilon - (xsi[i] * dx[i]) / machineEpsilon;
-                  deta[i] = -eta[i] + epsvecn[i] / machineEpsilon + (eta[i] * dx[i]) / machineEpsilon;
+                  dxsi[i] = -mma_ptr->xsi[i] + epsvecn[i] / mma_ptr->machineEpsilon - (mma_ptr->xsi[i] * dx[i]) / mma_ptr->machineEpsilon;
+                  deta[i] = -mma_ptr->eta[i] + epsvecn[i] / mma_ptr->machineEpsilon + (mma_ptr->eta[i] * dx[i]) / mma_ptr->machineEpsilon;
                }
                else
                {
-                  dxsi[i] = -xsi[i] + epsvecn[i] / machineEpsilon - (xsi[i] * dx[i]) / machineEpsilon;
-                  deta[i] = -eta[i] + epsvecn[i] / (beta[i] - x[i]) + (eta[i] * dx[i]) / (beta[i] - x[i]);
+                  dxsi[i] = -mma_ptr->xsi[i] + epsvecn[i] / mma_ptr->machineEpsilon - (mma_ptr->xsi[i] * dx[i]) / mma_ptr->machineEpsilon;
+                  deta[i] = -mma_ptr->eta[i] + epsvecn[i] / (mma_ptr->beta[i] - mma_ptr->x[i]) + (mma_ptr->eta[i] * dx[i]) / (mma_ptr->beta[i] - mma_ptr->x[i]);
                }
             }
-            else if (std::fabs(beta[i] - x[i]) < machineEpsilon)
+            else if (std::fabs(mma_ptr->beta[i] - mma_ptr->x[i]) < mma_ptr->machineEpsilon)
             {
-               dxsi[i] = -xsi[i] + epsvecn[i] / (x[i] - alfa[i]) - (xsi[i] * dx[i]) / (x[i] - alfa[i]);
-               deta[i] = -eta[i] + epsvecn[i] / machineEpsilon + (eta[i] * dx[i]) / machineEpsilon;
+               dxsi[i] = -mma_ptr->xsi[i] + epsvecn[i] / (mma_ptr->x[i] - mma_ptr->alfa[i]) - (mma_ptr->xsi[i] * dx[i]) / (mma_ptr->x[i] - mma_ptr->alfa[i]);
+               deta[i] = -mma_ptr->eta[i] + epsvecn[i] / mma_ptr->machineEpsilon + (mma_ptr->eta[i] * dx[i]) / mma_ptr->machineEpsilon;
             }
             else
             {
-               dxsi[i] = -xsi[i] + epsvecn[i] / (x[i] - alfa[i]) - (xsi[i] * dx[i]) / (x[i] - alfa[i]);
-               deta[i] = -eta[i] + epsvecn[i] / (beta[i] - x[i]) + (eta[i] * dx[i]) / (beta[i] - x[i]);
+               dxsi[i] = -mma_ptr->xsi[i] + epsvecn[i] / (mma_ptr->x[i] - mma_ptr->alfa[i]) - (mma_ptr->xsi[i] * dx[i]) / (mma_ptr->x[i] - mma_ptr->alfa[i]);
+               deta[i] = -mma_ptr->eta[i] + epsvecn[i] / (mma_ptr->beta[i] - mma_ptr->x[i]) + (mma_ptr->eta[i] * dx[i]) / (mma_ptr->beta[i] - mma_ptr->x[i]);
             }
-            xx[nCon + 1 + nCon + i] = xsi[i];
-            xx[nCon + 1 + nCon + nVar + i] = eta[i];
-            dxx[nCon + 1 + nCon + i] = dxsi[i];
-            dxx[nCon + 1 + nCon + nVar + i] = deta[i];
+            xx[mma_ptr->nCon + 1 + mma_ptr->nCon + i] = mma_ptr->xsi[i];
+            xx[mma_ptr->nCon + 1 + mma_ptr->nCon + mma_ptr->nVar + i] = mma_ptr->eta[i];
+            dxx[mma_ptr->nCon + 1 + mma_ptr->nCon + i] = dxsi[i];
+            dxx[mma_ptr->nCon + 1 + mma_ptr->nCon + mma_ptr->nVar + i] = deta[i];
          }
-         dzet = -zet + epsi / z - zet * dz / z;
+         dzet = -mma_ptr->zet + epsi / mma_ptr->z - mma_ptr->zet * dz / mma_ptr->z;
 
          stmxx = 0.0;
-         for (int i = 0; i < (4 * nCon + 2 * nVar + 2); i++)
+         for (int i = 0; i < (4 * mma_ptr->nCon + 2 * mma_ptr->nVar + 2); i++)
          {
             stepxx[i] = -1.01*dxx[i] / xx[i];
             if (stepxx[i] > stmxx)
@@ -688,25 +696,25 @@ void MMA::SubProblemClassic::Perform()
          }
          stmalfa = 0.0;
          stmbeta = 0.0;
-         for (int i = 0; i < nVar; i++)
+         for (int i = 0; i < mma_ptr->nVar; i++)
          {
             
             //NaN-Avoidance
-            if (std::fabs(x[i] - alfa[i]) < machineEpsilon)
+            if (std::fabs(mma_ptr->x[i] - mma_ptr->alfa[i]) < mma_ptr->machineEpsilon)
             {
-               stepalfa[i] = -1.01*dx[i] / machineEpsilon;
+               stepalfa[i] = -1.01*dx[i] / mma_ptr->machineEpsilon;
             }
             else 
             {
-               stepalfa[i] = -1.01*dx[i] / (x[i] - alfa[i]);
+               stepalfa[i] = -1.01*dx[i] / (mma_ptr->x[i] - mma_ptr->alfa[i]);
             }
-            if (std::fabs(beta[i] - x[i]) < machineEpsilon)
+            if (std::fabs(mma_ptr->beta[i] - mma_ptr->x[i]) < mma_ptr->machineEpsilon)
             {
-               stepbeta[i] = 1.01*dx[i] / machineEpsilon;
+               stepbeta[i] = 1.01*dx[i] / mma_ptr->machineEpsilon;
             }
             else
             {
-               stepbeta[i] = 1.01*dx[i] / (beta[i] - x[i]);
+               stepbeta[i] = 1.01*dx[i] / (mma_ptr->beta[i] - mma_ptr->x[i]);
             }
             // --------------
             if (stepalfa[i] > stmalfa)
@@ -723,21 +731,21 @@ void MMA::SubProblemClassic::Perform()
          stminv = std::max(stmalbexx, 1.0);
          steg = 1.0 / stminv;
 
-         for (int i = 0; i < nVar; i++)
+         for (int i = 0; i < mma_ptr->nVar; i++)
          {
-            xold[i] = x[i];
-            xsiold[i] = xsi[i];
-            etaold[i] = eta[i];
+            xold[i] = mma_ptr->x[i];
+            xsiold[i] = mma_ptr->xsi[i];
+            etaold[i] = mma_ptr->eta[i];
          }
-         for (int i = 0; i < nCon; i++)
+         for (int i = 0; i < mma_ptr->nCon; i++)
          {
-            yold[i] = y[i];
-            lamold[i] = lam[i];
-            muold[i] = mu[i];
-            sold[i] = s[i];
+            yold[i] = mma_ptr->y[i];
+            lamold[i] = mma_ptr->lam[i];
+            muold[i] = mma_ptr->mu[i];
+            sold[i] = mma_ptr->s[i];
          }
-         zold = z;
-         zetold = zet;
+         zold = mma_ptr->z;
+         zetold = mma_ptr->zet;
 
          itto = 0;
          resinew = 2.0 * residunorm;
@@ -745,143 +753,143 @@ void MMA::SubProblemClassic::Perform()
          {
             itto++;
 
-            for (int i = 0; i < nCon; ++i)
+            for (int i = 0; i < mma_ptr->nCon; ++i)
             {
-               y[i] = yold[i] + steg * dy[i];
-               if (std::fabs(y[i]) < machineEpsilon)
+               mma_ptr->y[i] = yold[i] + steg * dy[i];
+               if (mma_ptr->y[i] == 0)
                {
-                  y[i] = machineEpsilon;
+                  mma_ptr->y[i] = mma_ptr->machineEpsilon;
                }
                else
                {
-                  while (std::fabs(y[i]) < machineEpsilon)
+                  while (std::fabs(mma_ptr->y[i]) < mma_ptr->machineEpsilon)
                   {
-                     y[i] *= 10;
+                     mma_ptr->y[i] *= 10;
                   }
                }
-               lam[i] = lamold[i] + steg * dlam[i];
-               if (std::fabs(lam[i]) < machineEpsilon)
+               mma_ptr->lam[i] = lamold[i] + steg * dlam[i];
+               if (mma_ptr->lam[i] == 0)
                {
-                  lam[i] = machineEpsilon;
+                  mma_ptr->lam[i] = mma_ptr->machineEpsilon;
                }
                else
                {
-                  while (std::fabs(lam[i]) < machineEpsilon)
+                  while (std::fabs(mma_ptr->lam[i]) < mma_ptr->machineEpsilon)
                   {
-                     lam[i] *= 10;
+                     mma_ptr->lam[i] *= 10;
                   }
                }
-               mu[i] = muold[i] + steg * dmu[i];
-               s[i] = sold[i] + steg * ds[i];
+               mma_ptr->mu[i] = muold[i] + steg * dmu[i];
+               mma_ptr->s[i] = sold[i] + steg * ds[i];
             }
 
-            for (int i = 0; i < nVar; ++i)
+            for (int i = 0; i < mma_ptr->nVar; ++i)
             {
-               x[i] = xold[i] + steg * dx[i];
-               xsi[i] = xsiold[i] + steg * dxsi[i];
-               eta[i] = etaold[i] + steg * deta[i];
-               if (std::isnan(eta[i]))
+               mma_ptr->x[i] = xold[i] + steg * dx[i];
+               mma_ptr->xsi[i] = xsiold[i] + steg * dxsi[i];
+               mma_ptr->eta[i] = etaold[i] + steg * deta[i];
+               if (std::isnan(mma_ptr->eta[i]))
                {
-                  eta[i] = machineEpsilon;
+                  mma_ptr->eta[i] = mma_ptr->machineEpsilon;
                }
-               ux1[i] = upp[i] - x[i];
+               ux1[i] = mma_ptr->upp[i] - mma_ptr->x[i];
                if (ux1[i] == 0)
                {
-                  ux1[i] = machineEpsilon;
+                  ux1[i] = mma_ptr->machineEpsilon;
                }
                else
                {
-                  while (std::fabs(ux1[i]) <= machineEpsilon)
+                  while (std::fabs(ux1[i]) <= mma_ptr->machineEpsilon)
                   {
                      ux1[i] *= 10;
                   }
                }
-               xl1[i] = x[i] - low[i];
+               xl1[i] = mma_ptr->x[i] - mma_ptr->low[i];
                if (xl1[i] == 0)
                {
-                  xl1[i] = machineEpsilon;
+                  xl1[i] = mma_ptr->machineEpsilon;
                }
                else
                {
-                  while (std::fabs(xl1[i]) <= machineEpsilon)
+                  while (std::fabs(xl1[i]) <= mma_ptr->machineEpsilon)
                   {
                      xl1[i] *= 10;
                   }
                }
                // plam & qlam
-               plam[i] = p0[i];
-               qlam[i] = q0[i];
-               for (int j = 0; j < nCon; j++)
+               plam[i] = mma_ptr->p0[i];
+               qlam[i] = mma_ptr->q0[i];
+               for (int j = 0; j < mma_ptr->nCon; j++)
                {
-                  plam[i] += P[j * nVar + i] * lam[j];
-                  qlam[i] += Q[j * nVar + i] * lam[j];
+                  plam[i] += mma_ptr->P[j * mma_ptr->nVar + i] * mma_ptr->lam[j];
+                  qlam[i] += mma_ptr->Q[j * mma_ptr->nVar + i] * mma_ptr->lam[j];
                }
                dpsidx[i] = plam[i] / (ux1[i] * ux1[i]) - qlam[i] / (xl1[i] * xl1[i]);
-               rex[i] = dpsidx[i] - xsi[i] + eta[i];
-               rez -= a[i] * lam[i];
-               rexsi[i] = xsi[i] * (x[i] - alfa[i]) - epsvecn[i];              
-               if (std::fabs(x[i] - alfa[i]) < machineEpsilon || std::isnan(rexsi[i]))
+               rex[i] = dpsidx[i] - mma_ptr->xsi[i] + mma_ptr->eta[i];
+               rez -= mma_ptr->a[i] * mma_ptr->lam[i];
+               rexsi[i] = mma_ptr->xsi[i] * (mma_ptr->x[i] - mma_ptr->alfa[i]) - epsvecn[i];              
+               if (std::fabs(mma_ptr->x[i] - mma_ptr->alfa[i]) < mma_ptr->machineEpsilon || std::isnan(rexsi[i]))
                {
-                  rexsi[i] = machineEpsilon;
+                  rexsi[i] = mma_ptr->xsi[i] * mma_ptr->machineEpsilon - epsvecn[i]; 
                }
-               reeta[i] = eta[i] * (beta[i] - x[i]) - epsvecn[i];
-               if (std::fabs(beta[i] - x[i]) < machineEpsilon || std::isnan(reeta[i]))
+               reeta[i] = mma_ptr->eta[i] * (mma_ptr->beta[i] - mma_ptr->x[i]) - epsvecn[i];
+               if (std::fabs(mma_ptr->beta[i] - mma_ptr->x[i]) < mma_ptr->machineEpsilon || std::isnan(reeta[i]))
                {
-                  reeta[i] = machineEpsilon;
+                  reeta[i] = mma_ptr->eta[i] * mma_ptr->machineEpsilon - epsvecn[i];
                }
                residu1[i] = rex[i];
-               residu2[nCon + i] = rexsi[i];
-               residu2[nCon + nVar + i] = reeta[i];
+               residu2[mma_ptr->nCon + i] = rexsi[i];
+               residu2[mma_ptr->nCon + mma_ptr->nVar + i] = reeta[i];
             }
-            z = zold + steg * dz;
-            if (z == 0)
+            mma_ptr->z = zold + steg * dz;
+            if (mma_ptr->z == 0)
             {
-               z = machineEpsilon;
+               mma_ptr->z = mma_ptr->machineEpsilon;
             }
             else
             {
-               while (std::fabs(z) <= machineEpsilon)
+               while (std::fabs(mma_ptr->z) <= mma_ptr->machineEpsilon)
                {
-                  z *= 10;
+                  mma_ptr->z *= 10;
                }
             }
-            zet = zetold + steg * dzet;
+            mma_ptr->zet = zetold + steg * dzet;
 
             // gvec = P/ux + Q/xl
-            for (int i = 0; i < nCon; i++)
+            for (int i = 0; i < mma_ptr->nCon; i++)
             {
                gvec[i] = 0.0;
-               for (int j = 0; j < nVar; j++)
+               for (int j = 0; j < mma_ptr->nVar; j++)
                {
-                  gvec[i] += P[i * nVar + j] / ux1[j] + Q[i * nVar + j] / xl1[j];
+                  gvec[i] += mma_ptr->P[i * mma_ptr->nVar + j] / ux1[j] + mma_ptr->Q[i * mma_ptr->nVar + j] / xl1[j];
                }
-               rey[i] = c[i] + d[i] * y[i] - mu[i] - lam[i];
-               relam[i] = gvec[i] - a[i] * z - y[i] + s[i] - b[i];
-               remu[i] = mu[i] * y[i] - epsvecm[i];
-               res[i] = lam[i] * s[i] - epsvecm[i];
+               rey[i] = mma_ptr->c[i] + mma_ptr->d[i] * mma_ptr->y[i] - mma_ptr->mu[i] - mma_ptr->lam[i];
+               relam[i] = gvec[i] - mma_ptr->a[i] * mma_ptr->z - mma_ptr->y[i] + mma_ptr->s[i] - mma_ptr->b[i];
+               remu[i] = mma_ptr->mu[i] * mma_ptr->y[i] - epsvecm[i];
+               res[i] = mma_ptr->lam[i] * mma_ptr->s[i] - epsvecm[i];
 
                residu2[i] = relam[i];
-               residu1[nVar + i] = rey[i];
-               residu2[nCon + 2 * nVar + i] = remu[i];
-               residu2[2 * nVar + 2 * nCon + 1 + i] = res[i];
+               residu1[mma_ptr->nVar + i] = rey[i];
+               residu2[mma_ptr->nCon + 2 * mma_ptr->nVar + i] = remu[i];
+               residu2[2 * mma_ptr->nVar + 2 * mma_ptr->nCon + 1 + i] = res[i];
             }
-            rez = a0 - zet;
-            rezet = zet * z - epsi;
-            residu1[nVar + nCon] = rez;
-            residu2[2 * nVar + 2 * nCon] = rezet;
+            rez = mma_ptr->a0 - mma_ptr->zet;
+            rezet = mma_ptr->zet * mma_ptr->z - epsi;
+            residu1[mma_ptr->nVar + mma_ptr->nCon] = rez;
+            residu2[2 * mma_ptr->nVar + 2 * mma_ptr->nCon] = rezet;
 
             // Concatenate the residuals
-            for (int i = 0; i < (nVar + nCon + 1); i++)
+            for (int i = 0; i < (mma_ptr->nVar + mma_ptr->nCon + 1); i++)
             {
                residu[i] = residu1[i];
             }
-            for (int i = 0; i < (2 * nVar + 3 * nCon + 1); i++)
+            for (int i = 0; i < (2 * mma_ptr->nVar + 3 * mma_ptr->nCon + 1); i++)
             {
-               residu[nVar + nCon + 1 + i] = residu2[i];
+               residu[mma_ptr->nVar + mma_ptr->nCon + 1 + i] = residu2[i];
             }
             // New residual
             sum = 0.0;
-            for (int i = 0; i < (3 * nVar + 4 * nCon + 2); i++)
+            for (int i = 0; i < (3 * mma_ptr->nVar + 4 * mma_ptr->nCon + 2); i++)
             {
                sum += residu[i] * residu[i];
             }
@@ -891,7 +899,7 @@ void MMA::SubProblemClassic::Perform()
          }
          residunorm = resinew;
          residumax = 0.0;
-         for (int i = 0; i < (3 * nVar + 4 * nCon + 2); i++)
+         for (int i = 0; i < (3 * mma_ptr->nVar + 4 * mma_ptr->nCon + 2); i++)
          {
             residumax = std::max(residumax, std::abs(residu[i]));
          }
@@ -907,7 +915,7 @@ void MMA::SubProblemClassic::Perform()
    }
    //results.close();
    // should return x, y, z, lam, xsi, eta, mu, zet, s
-   kktnorm = kktcheck(y, dfdx, gx, dgdx, x);
+   //kktnorm = kktcheck(mma_ptr->y, dfdx, gx, dgdx, mma_ptr->x);
 }
 
 
@@ -928,75 +936,75 @@ double MMA::SubProblemClassic::kktcheck(double* y, double* const dfdx, double* c
    //std::ofstream kkt;
    //kkt.open("KKT.dat", std::ios::app);
 
-   for (int i = 0; i < nVar; i++)
+   for (int i = 0; i < mma_ptr->nVar; i++)
    {
       sum1[i] = 0.0;
-      for (int j = 0; j < nCon; j++)
+      for (int j = 0; j < mma_ptr->nCon; j++)
       {
-         sum1[i] += dgdx[j * nVar + i] * lam[j];
+         sum1[i] += dgdx[j * mma_ptr->nVar + i] * mma_ptr->lam[j];
       }
    }
-   for (int i = 0; i < nVar; i++)
+   for (int i = 0; i < mma_ptr->nVar; i++)
    {
-      rex[i] = dfdx[i] + sum1[i] - xsi[i] + eta[i];
-      rexsi[i] = xsi[i] * (x[i] - xmin[i]);      
-      reeta[i] = eta[i] * (xmax[i] - x[i]);
+      rex[i] = dfdx[i] + sum1[i] - mma_ptr->xsi[i] + mma_ptr->eta[i];
+      rexsi[i] = mma_ptr->xsi[i] * (mma_ptr->x[i] - mma_ptr->xmin[i]);      
+      reeta[i] = mma_ptr->eta[i] * (mma_ptr->xmax[i] - mma_ptr->x[i]);
    }
-   for (int i = 0; i < nCon; i++)
+   for (int i = 0; i < mma_ptr->nCon; i++)
    {
-      rey[i] = c[i] + d[i] * y[i] - mu[i] - lam[i];
-      relam[i] = gx[i] - a[i] * z - y[i] + s[i];
-      remu[i] = mu[i] * y[i];
-      res[i] = lam[i] * s[i];
+      rey[i] = mma_ptr->c[i] + mma_ptr->d[i] * mma_ptr->y[i] - mma_ptr->mu[i] - mma_ptr->lam[i];
+      relam[i] = gx[i] - mma_ptr->a[i] * mma_ptr->z - mma_ptr->y[i] + mma_ptr->s[i];
+      remu[i] = mma_ptr->mu[i] * mma_ptr->y[i];
+      res[i] = mma_ptr->lam[i] * mma_ptr->s[i];
    }
    sum = 0.0;
-   for (int i = 0; i < nCon; i++)
+   for (int i = 0; i < mma_ptr->nCon; i++)
    {
-      sum += a[i] * lam[i];
+      sum += mma_ptr->a[i] * mma_ptr->lam[i];
    }
-   rez = a0 - zet - sum;
-   rezet = zet * z;
+   rez = mma_ptr->a0 - mma_ptr->zet - sum;
+   rezet = mma_ptr->zet * mma_ptr->z;
    //---------------------------------------------------------------------
 
-   for (int i = 0; i < nVar; i++)
+   for (int i = 0; i < mma_ptr->nVar; i++)
    {
       residu1[i] = rex[i];
-      residu2[nCon + i] = rexsi[i];
-      residu2[nCon + nVar + i] = reeta[i];
+      residu2[mma_ptr->nCon + i] = rexsi[i];
+      residu2[mma_ptr->nCon + mma_ptr->nVar + i] = reeta[i];
    }
 
-   for (int i = 0; i < nCon; i++)
+   for (int i = 0; i < mma_ptr->nCon; i++)
    {
       residu2[i] = relam[i];
-      residu1[nVar + i] = rey[i];
-      residu2[nCon + 2 * nVar + i] = remu[i];
-      residu2[2 * nVar + 2 * nCon + 1 + i] = res[i];
+      residu1[mma_ptr->nVar + i] = rey[i];
+      residu2[mma_ptr->nCon + 2 * mma_ptr->nVar + i] = remu[i];
+      residu2[2 * mma_ptr->nVar + 2 * mma_ptr->nCon + 1 + i] = res[i];
    }
-   residu1[nVar + nCon] = rez;
-   residu2[2 * nVar + 2 * nCon] = rezet;
+   residu1[mma_ptr->nVar + mma_ptr->nCon] = rez;
+   residu2[2 * mma_ptr->nVar + 2 * mma_ptr->nCon] = rezet;
 
    // Concatenate the residuals
-   for (int i = 0; i < (nVar + nCon + 1); i++)
+   for (int i = 0; i < (mma_ptr->nVar + mma_ptr->nCon + 1); i++)
    {
       residu[i] = residu1[i];
    }
-   for (int i = 0; i < (2 * nVar + 3 * nCon + 1); i++)
+   for (int i = 0; i < (2 * mma_ptr->nVar + 3 * mma_ptr->nCon + 1); i++)
    {
-      residu[nVar + nCon + 1 + i] = residu2[i];
+      residu[mma_ptr->nVar + mma_ptr->nCon + 1 + i] = residu2[i];
    }
    //Get vector product and maximum absolute value
    residunorm = 0.0;
    residumax = 0.0;
-   for (int i = 0; i < (3 * nVar + 4 * nCon + 2); i++)
+   for (int i = 0; i < (3 * mma_ptr->nVar + 4 * mma_ptr->nCon + 2); i++)
    {
       residunorm += residu[i] * residu[i];
       residumax = std::max(residumax, std::abs(residu[i]));
    }
    // Norm of the residual
    residunorm = std::sqrt(residunorm);
-   kktnorm = residunorm;
+   mma_ptr->kktnorm = residunorm;
 
-   return kktnorm;
+   return mma_ptr->kktnorm;
    
    //kkt.close();
 }
@@ -1126,6 +1134,11 @@ void MMA::SubProblemClassic::freeSubProb()
    delete[] etaold;
    delete[] muold;
    delete[] sold;
+}
+
+void MMA::SubProblemClassicMPI::Perform()
+{
+   //do stuff
 }
 
 void MMA::setRestart(double* xval, int iter, std::string name, std::string path)
@@ -1306,7 +1319,7 @@ void MMA::freeMMA()
    delete[] xl1;
 }
 
-void MMA::subProblemFactory(int nVar, int nCon, enum SubProblemType type = CLASSIC )
+void MMA::subProblemFactory(int nVar, int nCon, enum SubProblemType type)
 {
    switch (type)
    {
@@ -1314,7 +1327,7 @@ void MMA::subProblemFactory(int nVar, int nCon, enum SubProblemType type = CLASS
          mSubProblem = new SubProblemClassic(this, nVar, nCon);
          break;
       case MPIClassic:
-         mSubProblem = new SubProblemClassicMPI();
+         mSubProblem = new SubProblemClassicMPI(this, nVar, nCon);
          //reinterpret_cast<SubProblemClassicMPI*>(mSubProblem)->Set.);
          break;
       default:
