@@ -45,7 +45,8 @@ namespace mma
 
 //Constructors
 // ----------------------------------------------------------------------
-MMA::MMA(int nVar, int nCon, double *xval, double *xxmin, double *xxmax, enum SubProblemType type )
+MMA::MMA(int nVar, int nCon, double *xval, double *xxmin, double *xxmax,
+         enum SubProblemType type )
 {
    this->setGlobals(nVar, nCon);
    this->setMMA(nVar, nCon);
@@ -55,21 +56,24 @@ MMA::MMA(int nVar, int nCon, double *xval, double *xxmin, double *xxmax, enum Su
    this->SubProblemFactory(nVar, nCon, type);
 }
 
-MMA::SubProblemBase::SubProblemBase(MMA* mma) : mma_ptr(mma){}
+MMA::SubProblemBase::SubProblemBase(MMA* mma) : mma_ptr(mma) {}
 
-MMA::SubProblemClassic::SubProblemClassic(MMA* mma, int nVar, int nCon) : SubProblemBase(mma)
+MMA::SubProblemClassic::SubProblemClassic(MMA* mma, int nVar,
+                                          int nCon) : SubProblemBase(mma)
 {
    this->setSubProb(nVar, nCon);
 }
 
-MMA::SubProblemClassicMPI::SubProblemClassicMPI(MMA* mma, int nVar, int nCon) : SubProblemBase(mma)
+MMA::SubProblemClassicMPI::SubProblemClassicMPI(MMA* mma, int nVar,
+                                                int nCon) : SubProblemBase(mma)
 {
    this->setSubProb(nVar, nCon);
 }
 
 
 
-void MMA::Update(int iter, double* const fval, double* const dfdx, double* const gx, double* const dgdx, double* xval)
+void MMA::Update(int iter, double* const fval, double* const dfdx,
+                 double* const gx, double* const dgdx, double* xval)
 {
    for (int i = 0; i < nVar; i++)
    {
@@ -124,7 +128,7 @@ void MMA::Update(int iter, double* const fval, double* const dfdx, double* const
          {
             factor[i] = 1.0;
          }
-         
+
 
          //Find new asymptote
          low[i] = xval[i] - factor[i] * (xo1[i] - low[i]);
@@ -146,7 +150,7 @@ void MMA::Update(int iter, double* const fval, double* const dfdx, double* const
       // Calculation of bounds alfa and beta according to:
       // alfa = max{xmin, low + 0.1(xval-low), xval-0.5(xmax-xmin)}
       // beta = min{xmax, upp - 0.1(upp-xval), xval+0.5(xmax-xmin)}
-      
+
       alfa[i] = std::max(std::max(low[i] + albefa * (xval[i] - low[i]),
                                   xval[i] - move * (xmax[i] - xmin[i])), xmin[i]);
       beta[i] = std::min(std::min(upp[i] - albefa * (upp[i] - xval[i]),
@@ -206,7 +210,7 @@ void MMA::Update(int iter, double* const fval, double* const dfdx, double* const
       xo2[i] = xo1[i];
       xo1[i] = xval[i];
       xval[i] = x[i];
-   }   
+   }
 }
 
 /**
@@ -243,9 +247,7 @@ void MMA::SubProblemClassic::Perform()
 
    while (epsi > mma->epsimin)
    {
-
-      //Assembly of residu starts here
-      rez = mma->a0 - mma->zet;
+      residu[nVar + nCon] = mma->a0 - mma->zet; //rez
       for (int i = 0; i < nVar; i++)
       {
          ux1[i] = mma->upp[i] - mma->x[i];
@@ -280,22 +282,26 @@ void MMA::SubProblemClassic::Perform()
             plam[i] += mma->P[j * nVar + i] * mma->lam[j];
             qlam[i] += mma->Q[j * nVar + i] * mma->lam[j];
          }
-         dpsidx[i] = plam[i] / (ux1[i] * ux1[i]) - qlam[i] / (xl1[i] * xl1[i]);
-         rex[i] = dpsidx[i] - mma->xsi[i] + mma->eta[i];
-         rez -= mma->a[i] * mma->lam[i];
-         rexsi[i] = mma->xsi[i] * (mma->x[i] - mma->alfa[i]) - epsi;
+
+         //Assembly of residu starts here
+         // ------------------------------------------------------------------------------------------------------------------------------------
+
+         residu[i] = plam[i] / (ux1[i] * ux1[i]) - qlam[i] / (xl1[i] * xl1[i]) -
+                     mma->xsi[i] + mma->eta[i]; //rex
+         residu[nVar + nCon] -= mma->a[i] * mma->lam[i]; //rez
+         residu[nVar + nCon + 1 + nCon + i] = mma->xsi[i] * (mma->x[i] - mma->alfa[i]) -
+                                              epsi; //rexsi
          if (std::fabs(mma->x[i]-mma->alfa[i]) == 0)
          {
-            rexsi[i] = mma->xsi[i] * mma->machineEpsilon - epsi;
+            residu[nVar + nCon + 1 + nCon + i] = mma->xsi[i] * mma->machineEpsilon - epsi;
          }
-         reeta[i] = mma->eta[i] * (mma->beta[i] - mma->x[i]) - epsi;
+         residu[nVar + nCon + 1 + nCon + nVar + i] = mma->eta[i] *
+                                                     (mma->beta[i] - mma->x[i]) - epsi; //reeta
          if (std::fabs(mma->beta[i] - mma->x[i]) == 0)
          {
-            reeta[i] = mma->eta[i] * mma->machineEpsilon - epsi;;
+            residu[nVar + nCon + 1 + nCon + nVar + i] = mma->eta[i] * mma->machineEpsilon -
+                                                        epsi;;
          }
-         residu1[i] = rex[i];
-         residu2[nCon + i] = rexsi[i];
-         residu2[nCon + nVar + i] = reeta[i];
       }
       for (int i = 0; i < nCon; i++)
       {
@@ -304,28 +310,16 @@ void MMA::SubProblemClassic::Perform()
          {
             gvec[i] += mma->P[i * nVar + j] / ux1[j] + mma->Q[i * nVar + j] / xl1[j];
          }
-         rey[i] = mma->c[i] + mma->d[i] * mma->y[i] - mma->mu[i] - mma->lam[i];
-         relam[i] = gvec[i] - mma->a[i] * mma->z - mma->y[i] + mma->s[i] - mma->b[i];
-         remu[i] = mma->mu[i] * mma->y[i] - epsi;
-         res[i] = mma->lam[i] * mma->s[i] - epsi;
-         residu2[i] = relam[i];
-         residu1[nVar + i] = rey[i];
-         residu2[nCon + 2 * nVar + i] = remu[i];
-         residu2[2 * nVar + 2 * nCon + 1 + i] = res[i];
+         residu[nVar + i] = mma->c[i] + mma->d[i] * mma->y[i] - mma->mu[i] -
+                            mma->lam[i]; //rey
+         residu[nVar + nCon + 1 + i] = gvec[i] - mma->a[i] * mma->z - mma->y[i] +
+                                       mma->s[i] - mma->b[i]; //relam
+         residu[nVar + nCon + 1 + nCon + 2 * nVar + i] = mma->mu[i] * mma->y[i] -
+                                                         epsi; //remu
+         residu[nVar + nCon + 1 + 2 * nVar + 2 * nCon + 1 + i] = mma->lam[i] * mma->s[i]
+                                                                 - epsi; //res
       }
-      rezet = mma->zet * mma->z - epsi;
-      residu1[nVar + nCon] = rez;
-      residu2[2 * nVar + 2 * nCon] = rezet;
-
-      // Concatenate the residuals
-      for (int i = 0; i < (nVar + nCon + 1); i++)
-      {
-         residu[i] = residu1[i];
-      }
-      for (int i = 0; i < (2 * nVar + 3 * nCon + 1); i++)
-      {
-         residu[nVar + nCon + 1 + i] = residu2[i];
-      }
+      residu[nVar + nCon + 1 + 2 * nVar + 2 * nCon] = mma->zet * mma->z - epsi;
 
       //Get vector product and maximum absolute value
       residunorm = 0.0;
@@ -377,30 +371,40 @@ void MMA::SubProblemClassic::Perform()
                plam[i] += mma->P[j * nVar + i] * mma->lam[j];
                qlam[i] += mma->Q[j * nVar + i] * mma->lam[j];
             }
-            dpsidx[i] = plam[i] / (ux1[i] * ux1[i]) - qlam[i] / (xl1[i] * xl1[i]);
             // NaN-Avoidance
             if (std::fabs(mma->x[i] - mma->alfa[i]) < mma->machineEpsilon)
             {
                if (std::fabs(mma->beta[i] - mma->x[i]) < mma->machineEpsilon)
                {
-                  delx[i] = dpsidx[i];
-                  diagx[i] = 2 * (plam[i] / (ux1[i] * ux1[i] * ux1[i]) + qlam[i] / (xl1[i] * xl1[i] * xl1[i])) + mma->xsi[i] / mma->machineEpsilon + mma->eta[i] / mma->machineEpsilon;
+                  delx[i] = plam[i] / (ux1[i] * ux1[i]) - qlam[i] / (xl1[i] * xl1[i]);
+                  diagx[i] = 2 * (plam[i] / (ux1[i] * ux1[i] * ux1[i]) + qlam[i] /
+                                  (xl1[i] * xl1[i] * xl1[i])) + mma->xsi[i] / mma->machineEpsilon + mma->eta[i] /
+                             mma->machineEpsilon;
                }
                else
                {
-                  delx[i] = dpsidx[i] - epsi / mma->machineEpsilon + epsi / (mma->beta[i] - mma->x[i]);
-                  diagx[i] = 2 * (plam[i] / (ux1[i] * ux1[i] * ux1[i]) + qlam[i] / (xl1[i] * xl1[i] * xl1[i])) + mma->xsi[i] / (mma->x[i] - mma->alfa[i]) + mma->eta[i] / (mma->beta[i] - mma->x[i]);
+                  delx[i] = plam[i] / (ux1[i] * ux1[i]) - qlam[i] / (xl1[i] * xl1[i]) - epsi /
+                            mma->machineEpsilon + epsi / (mma->beta[i] - mma->x[i]);
+                  diagx[i] = 2 * (plam[i] / (ux1[i] * ux1[i] * ux1[i]) + qlam[i] /
+                                  (xl1[i] * xl1[i] * xl1[i])) + mma->xsi[i] / (mma->x[i] - mma->alfa[i]) +
+                             mma->eta[i] / (mma->beta[i] - mma->x[i]);
                }
             }
             else if (std::fabs(mma->beta[i] - mma->x[i]) < mma->machineEpsilon)
             {
-               delx[i] = dpsidx[i] - epsi / (mma->x[i] - mma->alfa[i]) + epsi / mma->machineEpsilon;
-               diagx[i] = 2 * (plam[i] / (ux1[i] * ux1[i] * ux1[i]) + qlam[i] / (xl1[i] * xl1[i] * xl1[i])) + mma->xsi[i] / (mma->x[i] - mma->alfa[i]) + mma->eta[i] / mma->machineEpsilon;
+               delx[i] = plam[i] / (ux1[i] * ux1[i]) - qlam[i] / (xl1[i] * xl1[i]) - epsi /
+                         (mma->x[i] - mma->alfa[i]) + epsi / mma->machineEpsilon;
+               diagx[i] = 2 * (plam[i] / (ux1[i] * ux1[i] * ux1[i]) + qlam[i] /
+                               (xl1[i] * xl1[i] * xl1[i])) + mma->xsi[i] / (mma->x[i] - mma->alfa[i]) +
+                          mma->eta[i] / mma->machineEpsilon;
             }
             else
             {
-               delx[i] = dpsidx[i] - epsi / (mma->x[i] - mma->alfa[i]) + epsi / (mma->beta[i] - mma->x[i]);
-               diagx[i] = 2 * (plam[i] / (ux1[i] * ux1[i] * ux1[i]) + qlam[i] / (xl1[i] * xl1[i] * xl1[i])) + mma->xsi[i] / (mma->x[i] - mma->alfa[i]) + mma->eta[i] / (mma->beta[i] - mma->x[i]);
+               delx[i] = plam[i] / (ux1[i] * ux1[i]) - qlam[i] / (xl1[i] * xl1[i]) - epsi /
+                         (mma->x[i] - mma->alfa[i]) + epsi / (mma->beta[i] - mma->x[i]);
+               diagx[i] = 2 * (plam[i] / (ux1[i] * ux1[i] * ux1[i]) + qlam[i] /
+                               (xl1[i] * xl1[i] * xl1[i])) + mma->xsi[i] / (mma->x[i] - mma->alfa[i]) +
+                          mma->eta[i] / (mma->beta[i] - mma->x[i]);
             }
          }
 
@@ -420,17 +424,16 @@ void MMA::SubProblemClassic::Perform()
 
             dely[i] = mma->c[i] + mma->d[i] * mma->y[i] - mma->lam[i] - epsi / mma->y[i];
             delz -= mma->a[i] * mma->lam[i];
-            dellam[i] = gvec[i] - mma->a[i] * mma->z - mma->y[i] - mma->b[i] + epsi / mma->lam[i];
+            dellam[i] = gvec[i] - mma->a[i] * mma->z - mma->y[i] - mma->b[i] + epsi /
+                        mma->lam[i];
             diagy[i] = mma->d[i] + mma->mu[i] / mma->y[i];
-            //diagyinv[i] = 1.0 / diagy[i];
-            diaglam[i] = mma->s[i] / mma->lam[i];
-            diaglamyi[i] = diaglam[i] + 1.0 / diagy[i];
+            diaglamyi[i] = mma->s[i] / mma->lam[i] + 1.0 / diagy[i];
          }
 
          if (nCon < nVar)
          {
-            // blam = dellam + dely./diagy - GG*(delx./diagx);
-            // bb = [blam; delz];
+            // bb1 = dellam + dely./diagy - GG*(delx./diagx);
+            // bb1 = [bb1; delz];
             for (int j = 0; j < nCon; j++)
             {
                sum = 0.0;
@@ -438,10 +441,9 @@ void MMA::SubProblemClassic::Perform()
                {
                   sum += GG[j * nVar + i] * (delx[i] / diagx[i]);
                }
-               blam[j] = dellam[j] + dely[j] / diagy[j] - sum;
-               bb1[j] = blam[j];
+               bb1[j] = dellam[j] + dely[j] / diagy[j] - sum;
             }
-            bb1[nCon] = delz;            
+            bb1[nCon] = delz;
 
             // Alam = spdiags(diaglamyi,0,m,m) + GG*spdiags(diagxinv,0,n,n)*GG';
             for (int i = 0; i < nCon; i++)
@@ -479,7 +481,7 @@ void MMA::SubProblemClassic::Perform()
                AA1[nCon * nCon + i] = mma->a[i];
                AA1[nCon * nCon + nCon + i] = mma->a[i];
             }
-            AA1[nCon * nCon + nCon + nCon] = -mma->zet / mma->z;           
+            AA1[nCon * nCon + nCon + nCon] = -mma->zet / mma->z;
 
             // ----------------------------------------------------------------------------
             //solut = AA1\bb1 --> solve linear system of equations using LAPACK
@@ -510,7 +512,7 @@ void MMA::SubProblemClassic::Perform()
                {
                   sum += GG[j * nVar + i] * dlam[j];
                }
-               dx[i] = -sum / diagx[i] - delx[i] / diagx[i];           
+               dx[i] = -sum / diagx[i] - delx[i] / diagx[i];
             }
          }
          else
@@ -626,7 +628,8 @@ void MMA::SubProblemClassic::Perform()
                {
                   sum += GG[i * nVar + j] * dx[j];
                }
-               dlam[i] = sum / diaglamyi[i] - dz * (mma->a[i] / diaglamyi[i]) + dellamyi[i] / diaglamyi[i];
+               dlam[i] = sum / diaglamyi[i] - dz * (mma->a[i] / diaglamyi[i]) + dellamyi[i] /
+                         diaglamyi[i];
             }
          }
 
@@ -657,24 +660,32 @@ void MMA::SubProblemClassic::Perform()
             {
                if (std::fabs(mma->beta[i] - mma->x[i]) < mma->machineEpsilon)
                {
-                  dxsi[i] = -mma->xsi[i] + epsi / mma->machineEpsilon - (mma->xsi[i] * dx[i]) / mma->machineEpsilon;
-                  deta[i] = -mma->eta[i] + epsi / mma->machineEpsilon + (mma->eta[i] * dx[i]) / mma->machineEpsilon;
+                  dxsi[i] = -mma->xsi[i] + epsi / mma->machineEpsilon - (mma->xsi[i] * dx[i]) /
+                            mma->machineEpsilon;
+                  deta[i] = -mma->eta[i] + epsi / mma->machineEpsilon + (mma->eta[i] * dx[i]) /
+                            mma->machineEpsilon;
                }
                else
                {
-                  dxsi[i] = -mma->xsi[i] + epsi / mma->machineEpsilon - (mma->xsi[i] * dx[i]) / mma->machineEpsilon;
-                  deta[i] = -mma->eta[i] + epsi / (mma->beta[i] - mma->x[i]) + (mma->eta[i] * dx[i]) / (mma->beta[i] - mma->x[i]);
+                  dxsi[i] = -mma->xsi[i] + epsi / mma->machineEpsilon - (mma->xsi[i] * dx[i]) /
+                            mma->machineEpsilon;
+                  deta[i] = -mma->eta[i] + epsi / (mma->beta[i] - mma->x[i]) +
+                            (mma->eta[i] * dx[i]) / (mma->beta[i] - mma->x[i]);
                }
             }
             else if (std::fabs(mma->beta[i] - mma->x[i]) < mma->machineEpsilon)
             {
-               dxsi[i] = -mma->xsi[i] + epsi / (mma->x[i] - mma->alfa[i]) - (mma->xsi[i] * dx[i]) / (mma->x[i] - mma->alfa[i]);
-               deta[i] = -mma->eta[i] + epsi / mma->machineEpsilon + (mma->eta[i] * dx[i]) / mma->machineEpsilon;
+               dxsi[i] = -mma->xsi[i] + epsi / (mma->x[i] - mma->alfa[i]) -
+                         (mma->xsi[i] * dx[i]) / (mma->x[i] - mma->alfa[i]);
+               deta[i] = -mma->eta[i] + epsi / mma->machineEpsilon + (mma->eta[i] * dx[i]) /
+                         mma->machineEpsilon;
             }
             else
             {
-               dxsi[i] = -mma->xsi[i] + epsi / (mma->x[i] - mma->alfa[i]) - (mma->xsi[i] * dx[i]) / (mma->x[i] - mma->alfa[i]);
-               deta[i] = -mma->eta[i] + epsi / (mma->beta[i] - mma->x[i]) + (mma->eta[i] * dx[i]) / (mma->beta[i] - mma->x[i]);
+               dxsi[i] = -mma->xsi[i] + epsi / (mma->x[i] - mma->alfa[i]) -
+                         (mma->xsi[i] * dx[i]) / (mma->x[i] - mma->alfa[i]);
+               deta[i] = -mma->eta[i] + epsi / (mma->beta[i] - mma->x[i]) +
+                         (mma->eta[i] * dx[i]) / (mma->beta[i] - mma->x[i]);
             }
             xx[nCon + 1 + nCon + i] = mma->xsi[i];
             xx[nCon + 1 + nCon + nVar + i] = mma->eta[i];
@@ -696,13 +707,13 @@ void MMA::SubProblemClassic::Perform()
          stmbeta = 0.0;
          for (int i = 0; i < nVar; i++)
          {
-            
+
             //NaN-Avoidance
             if (std::fabs(mma->x[i] - mma->alfa[i]) < mma->machineEpsilon)
             {
                stepalfa[i] = -1.01*dx[i] / mma->machineEpsilon;
             }
-            else 
+            else
             {
                stepalfa[i] = -1.01*dx[i] / (mma->x[i] - mma->alfa[i]);
             }
@@ -781,6 +792,7 @@ void MMA::SubProblemClassic::Perform()
                mma->s[i] = sold[i] + steg * ds[i];
             }
 
+            residu[nVar + nCon] = mma->a0 - mma->zet; //rez
             for (int i = 0; i < nVar; ++i)
             {
                mma->x[i] = xold[i] + steg * dx[i];
@@ -822,22 +834,27 @@ void MMA::SubProblemClassic::Perform()
                   plam[i] += mma->P[j * nVar + i] * mma->lam[j];
                   qlam[i] += mma->Q[j * nVar + i] * mma->lam[j];
                }
-               dpsidx[i] = plam[i] / (ux1[i] * ux1[i]) - qlam[i] / (xl1[i] * xl1[i]);
-               rex[i] = dpsidx[i] - mma->xsi[i] + mma->eta[i];
-               rez -= mma->a[i] * mma->lam[i];
-               rexsi[i] = mma->xsi[i] * (mma->x[i] - mma->alfa[i]) - epsi;              
-               if (std::fabs(mma->x[i] - mma->alfa[i]) < mma->machineEpsilon || std::isnan(rexsi[i]))
+
+               // Assembly starts here
+
+               residu[i] = plam[i] / (ux1[i] * ux1[i]) - qlam[i] / (xl1[i] * xl1[i]) -
+                           mma->xsi[i] + mma->eta[i]; //rex
+               residu[nVar + nCon] -= mma->a[i] * mma->lam[i]; //rez
+               residu[nVar + nCon + 1 + nCon + i] = mma->xsi[i] * (mma->x[i] - mma->alfa[i]) -
+                                                    epsi; //rexsi
+               if (std::fabs(mma->x[i] - mma->alfa[i]) < mma->machineEpsilon ||
+                   std::isnan(residu[nVar + nCon + 1 + nCon + i]))
                {
-                  rexsi[i] = mma->xsi[i] * mma->machineEpsilon - epsi; 
+                  residu[nVar + nCon + 1 + nCon + i] = mma->xsi[i] * mma->machineEpsilon - epsi;
                }
-               reeta[i] = mma->eta[i] * (mma->beta[i] - mma->x[i]) - epsi;
-               if (std::fabs(mma->beta[i] - mma->x[i]) < mma->machineEpsilon || std::isnan(reeta[i]))
+               residu[nVar + nCon + 1 + nCon + nVar + i] = mma->eta[i] *
+                                                           (mma->beta[i] - mma->x[i]) - epsi; //reeta
+               if (std::fabs(mma->beta[i] - mma->x[i]) < mma->machineEpsilon ||
+                   std::isnan(residu[nVar + nCon + 1 + nCon + nVar + i]))
                {
-                  reeta[i] = mma->eta[i] * mma->machineEpsilon - epsi;
+                  residu[nVar + nCon + 1 + nCon + nVar + i] = mma->eta[i] * mma->machineEpsilon -
+                                                              epsi;
                }
-               residu1[i] = rex[i];
-               residu2[nCon + i] = rexsi[i];
-               residu2[nCon + nVar + i] = reeta[i];
             }
             mma->z = zold + steg * dz;
             if (mma->z == 0)
@@ -861,30 +878,18 @@ void MMA::SubProblemClassic::Perform()
                {
                   gvec[i] += mma->P[i * nVar + j] / ux1[j] + mma->Q[i * nVar + j] / xl1[j];
                }
-               rey[i] = mma->c[i] + mma->d[i] * mma->y[i] - mma->mu[i] - mma->lam[i];
-               relam[i] = gvec[i] - mma->a[i] * mma->z - mma->y[i] + mma->s[i] - mma->b[i];
-               remu[i] = mma->mu[i] * mma->y[i] - epsi;
-               res[i] = mma->lam[i] * mma->s[i] - epsi;
+               residu[nVar + i] = mma->c[i] + mma->d[i] * mma->y[i] - mma->mu[i] -
+                                  mma->lam[i]; //rey
+               residu[nVar + nCon + 1 + i] = gvec[i] - mma->a[i] * mma->z - mma->y[i] +
+                                             mma->s[i] - mma->b[i]; //relam
+               residu[nVar + nCon + 1 + nCon + 2 * nVar + i] = mma->mu[i] * mma->y[i] -
+                                                               epsi; //remu
+               residu[nVar + nCon + 1 + 2 * nVar + 2 * nCon + 1 + i] = mma->lam[i] * mma->s[i]
+                                                                       - epsi; //res
+            }
+            residu[nVar + nCon + 1 + 2 * nVar + 2 * nCon] = mma->zet * mma->z -
+                                                            epsi; //rezet
 
-               residu2[i] = relam[i];
-               residu1[nVar + i] = rey[i];
-               residu2[nCon + 2 * nVar + i] = remu[i];
-               residu2[2 * nVar + 2 * nCon + 1 + i] = res[i];
-            }
-            rez = mma->a0 - mma->zet;
-            rezet = mma->zet * mma->z - epsi;
-            residu1[nVar + nCon] = rez;
-            residu2[2 * nVar + 2 * nCon] = rezet;
-
-            // Concatenate the residuals
-            for (int i = 0; i < (nVar + nCon + 1); i++)
-            {
-               residu[i] = residu1[i];
-            }
-            for (int i = 0; i < (2 * nVar + 3 * nCon + 1); i++)
-            {
-               residu[nVar + nCon + 1 + i] = residu2[i];
-            }
             // New residual
             sum = 0.0;
             for (int i = 0; i < (3 * nVar + 4 * nCon + 2); i++)
@@ -913,7 +918,6 @@ void MMA::SubProblemClassic::Perform()
    }
    //results.close();
    // should return x, y, z, lam, xsi, eta, mu, zet, s
-   //kktnorm = kktcheck(mma->y, dfdx, gx, dgdx, mma->x);
 }
 
 
@@ -929,71 +933,51 @@ void MMA::SubProblemClassic::Perform()
  * Output: x, y, z, slack variables and Lagrange multiplers.
 */
 
-double MMA::SubProblemClassic::kktcheck(double* y, double* const dfdx, double* const gx, double* const dgdx, double* x)
+double MMA::SubProblemClassic::kktcheck(double* y, double* const dfdx,
+                                        double* const gx, double* const dgdx, double* x)
 {
    //std::ofstream kkt;
    //kkt.open("KKT.dat", std::ios::app);
+   int nVar = mma_ptr->nVar;
+   int nCon = mma_ptr->nCon;
 
-   for (int i = 0; i < mma_ptr->nVar; i++)
+   for (int i = 0; i < nVar; i++)
    {
       sum1[i] = 0.0;
-      for (int j = 0; j < mma_ptr->nCon; j++)
+      for (int j = 0; j < nCon; j++)
       {
-         sum1[i] += dgdx[j * mma_ptr->nVar + i] * mma_ptr->lam[j];
+         sum1[i] += dgdx[j * nVar + i] * mma_ptr->lam[j];
       }
    }
-   for (int i = 0; i < mma_ptr->nVar; i++)
+   for (int i = 0; i < nVar; i++)
    {
-      rex[i] = dfdx[i] + sum1[i] - mma_ptr->xsi[i] + mma_ptr->eta[i];
-      rexsi[i] = mma_ptr->xsi[i] * (mma_ptr->x[i] - mma_ptr->xmin[i]);      
-      reeta[i] = mma_ptr->eta[i] * (mma_ptr->xmax[i] - mma_ptr->x[i]);
-   }
-   for (int i = 0; i < mma_ptr->nCon; i++)
-   {
-      rey[i] = mma_ptr->c[i] + mma_ptr->d[i] * mma_ptr->y[i] - mma_ptr->mu[i] - mma_ptr->lam[i];
-      relam[i] = gx[i] - mma_ptr->a[i] * mma_ptr->z - mma_ptr->y[i] + mma_ptr->s[i];
-      remu[i] = mma_ptr->mu[i] * mma_ptr->y[i];
-      res[i] = mma_ptr->lam[i] * mma_ptr->s[i];
-   }
-   sum = 0.0;
-   for (int i = 0; i < mma_ptr->nCon; i++)
-   {
-      sum += mma_ptr->a[i] * mma_ptr->lam[i];
-   }
-   rez = mma_ptr->a0 - mma_ptr->zet - sum;
-   rezet = mma_ptr->zet * mma_ptr->z;
-   //---------------------------------------------------------------------
-
-   for (int i = 0; i < mma_ptr->nVar; i++)
-   {
-      residu1[i] = rex[i];
-      residu2[mma_ptr->nCon + i] = rexsi[i];
-      residu2[mma_ptr->nCon + mma_ptr->nVar + i] = reeta[i];
+      residu[i] = dfdx[i] + sum1[i] - mma_ptr->xsi[i] + mma_ptr->eta[i]; //rex
+      residu[nVar + nCon + 1 + nCon + i] = mma_ptr->xsi[i] * (mma_ptr->x[i] -
+                                                              mma_ptr->xmin[i]);  //rexsi
+      residu[nVar + nCon + 1 + nCon + nVar + i] = mma_ptr->eta[i] *
+                                                  (mma_ptr->xmax[i] - mma_ptr->x[i]); //reeta
    }
 
-   for (int i = 0; i < mma_ptr->nCon; i++)
+   residu[nVar + nCon] = mma_ptr->a0 - mma_ptr->zet; //rez
+   for (int i = 0; i < nCon; i++)
    {
-      residu2[i] = relam[i];
-      residu1[mma_ptr->nVar + i] = rey[i];
-      residu2[mma_ptr->nCon + 2 * mma_ptr->nVar + i] = remu[i];
-      residu2[2 * mma_ptr->nVar + 2 * mma_ptr->nCon + 1 + i] = res[i];
+      residu[nVar + i] = mma_ptr->c[i] + mma_ptr->d[i] * mma_ptr->y[i] -
+                         mma_ptr->mu[i] - mma_ptr->lam[i]; //rey
+      residu[nVar + nCon + 1 + i] = gx[i] - mma_ptr->a[i] * mma_ptr->z - mma_ptr->y[i]
+                                    + mma_ptr->s[i]; //relam
+      residu[nVar + nCon + 1 + nCon + 2 * nVar + i] = mma_ptr->mu[i] *
+                                                      mma_ptr->y[i]; //remu
+      residu[nVar + nCon + 1 + 2 * nVar + 2 * nCon + 1 + i] = mma_ptr->lam[i] *
+                                                              mma_ptr->s[i]; //res
+      residu[nVar + nCon] -= mma_ptr->a[i] * mma_ptr->lam[i]; //rez
    }
-   residu1[mma_ptr->nVar + mma_ptr->nCon] = rez;
-   residu2[2 * mma_ptr->nVar + 2 * mma_ptr->nCon] = rezet;
+   residu[nVar + nCon + 1 + 2 * nVar + 2 * nCon] = mma_ptr->zet *
+                                                   mma_ptr->z; //rezet
 
-   // Concatenate the residuals
-   for (int i = 0; i < (mma_ptr->nVar + mma_ptr->nCon + 1); i++)
-   {
-      residu[i] = residu1[i];
-   }
-   for (int i = 0; i < (2 * mma_ptr->nVar + 3 * mma_ptr->nCon + 1); i++)
-   {
-      residu[mma_ptr->nVar + mma_ptr->nCon + 1 + i] = residu2[i];
-   }
    //Get vector product and maximum absolute value
    residunorm = 0.0;
    residumax = 0.0;
-   for (int i = 0; i < (3 * mma_ptr->nVar + 4 * mma_ptr->nCon + 2); i++)
+   for (int i = 0; i < (3 * nVar + 4 * nCon + 2); i++)
    {
       residunorm += residu[i] * residu[i];
       residumax = std::max(residumax, std::abs(residu[i]));
@@ -1003,7 +987,7 @@ double MMA::SubProblemClassic::kktcheck(double* y, double* const dfdx, double* c
    mma_ptr->kktnorm = residunorm;
 
    return mma_ptr->kktnorm;
-   
+
    //kkt.close();
 }
 
@@ -1016,16 +1000,6 @@ void MMA::SubProblemClassic::setSubProb(int nVar, int nCon)
    plam = new double[nVar];
    qlam = new double[nVar];
    gvec = new double[nCon];
-   dpsidx = new double[nVar];
-   rex = new double[nVar];
-   rey = new double[nCon];
-   relam = new double[nCon];
-   rexsi = new double[nVar];
-   reeta = new double[nVar];
-   remu = new double[nCon];
-   res = new double[nCon];
-   residu1 = new double[nVar + nCon + 1];
-   residu2 = new double[3 * nCon + 2 * nVar + 1];
    residu = new double[3 * nVar + 4 * nCon + 2];
    GG = new double[nVar * nCon];
    Puxinv = new double[nVar * nCon];
@@ -1038,7 +1012,6 @@ void MMA::SubProblemClassic::setSubProb(int nVar, int nCon)
    diagy = new double[nCon];
    diaglam = new double[nCon];
    diaglamyi = new double[nCon];
-   blam = new double[nCon];
    bb = new double[nVar + 1];
    bb1 = new double[nCon + 1];
    Alam = new double[nCon * nCon];
@@ -1078,16 +1051,6 @@ void MMA::SubProblemClassic::freeSubProb()
    delete[] plam;
    delete[] qlam;
    delete[] gvec;
-   delete[] dpsidx;
-   delete[] rex;
-   delete[] rey;
-   delete[] relam;
-   delete[] rexsi;
-   delete[] reeta;
-   delete[] remu;
-   delete[] res;
-   delete[] residu1;
-   delete[] residu2;
    delete[] residu;
    delete[] GG;
    delete[] Puxinv;
@@ -1100,7 +1063,6 @@ void MMA::SubProblemClassic::freeSubProb()
    delete[] diagy;
    delete[] diaglam;
    delete[] diaglamyi;
-   delete[] blam;
    delete[] bb;
    delete[] bb1;
    delete[] Alam;
@@ -1141,7 +1103,7 @@ void MMA::setRestart(double* xval, int iter, std::string name, std::string path)
    {
       mfem::mfem_error("MMA::setRestart - iter must be greater than 2");
    }
-   
+
    std::string restartFile = path + name;
    std::ifstream input(restartFile);
    input >> iter;
@@ -1174,7 +1136,8 @@ void MMA::setRestart(double* xval, int iter, std::string name, std::string path)
    input.close();
 }
 
-void MMA::outputRestart(double* xval, int iter, std::string name, std::string path)
+void MMA::outputRestart(double* xval, int iter, std::string name,
+                        std::string path)
 {
    std::string restartFile = path + name;
    std::ofstream mma;
@@ -1249,7 +1212,7 @@ void MMA::setGlobals(int nVar, int nCon)
    machineEpsilon = 1e-10;
 
    isInitialized = true;
-} 
+}
 
 void MMA::freeGlobals()
 {

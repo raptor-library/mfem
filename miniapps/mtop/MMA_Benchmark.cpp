@@ -40,7 +40,8 @@
 //using namespace mfem;
 using namespace mma;
 
-void Rosenbrock(double* xval, double a, double b, double* const fval, double* const dfdx,
+void Rosenbrock(double* xval, double a, double b, double* const fval,
+                double* const dfdx,
                 double* const gx, double* const dgdx);
 
 int main(int argc, char *argv[])
@@ -83,19 +84,20 @@ int main(int argc, char *argv[])
       xmin[i] = -2.0;
       xmax[i] = 2.0;
    }
-   
+
    // ---------- CALL CONSTRUCTOR -----------
    MMA MMAmain(nVar, nCon, xval, xmin, xmax);
    std::ofstream mma;
    mma.open("mma.dat");
 
-   mma << xval[0] << "\n" << xval[1] << "\n" << xmax[0] << "\n" << xmax[1] << "\n" << xmin[0] << "\n" << xmin[1] << std::endl;
+   mma << xval[0] << "\n" << xval[1] << "\n" << xmax[0] << "\n" << xmax[1] << "\n"
+       << xmin[0] << "\n" << xmin[1] << std::endl;
    Rosenbrock(xval, aR, bR, fval, dfdx, gx, dgdx);
 
 
    while (iter < maxiter)
    {
-      
+
       // ----------------- RUN MMA --------------------
       MMAmain.Update(iter, fval, dfdx, gx, dgdx, xval);
       // ---------- UPDATE DESIGN & CONSTRAINTS -------
@@ -103,7 +105,8 @@ int main(int argc, char *argv[])
       // ---------- PRINT FOR VISUALIZATION------------
       lower = MMAmain.getLow();
       upper = MMAmain.getUpp();
-      mma << xval[0] << "\n" << xval[1] << "\n" << upper[0] << "\n" << upper[1] << "\n" << lower[0] << "\n" << lower[1] << std::endl;
+      mma << xval[0] << "\n" << xval[1] << "\n" << upper[0] << "\n" << upper[1] <<
+          "\n" << lower[0] << "\n" << lower[1] << std::endl;
 
       // ------------- CHECK CONVERGENCE --------------
       if (MMAmain.getKKT() < tol)
@@ -111,7 +114,7 @@ int main(int argc, char *argv[])
          printf("KKT satisfied: Norm = %f\n", MMAmain.getKKT());
          break;
       }
-   
+
       // -------------- RESTART if desired ------------
       if (iter % restart == 0)
       {
@@ -129,7 +132,8 @@ int main(int argc, char *argv[])
 
 
 
-void Rosenbrock(double* xval, double a, double b, double* const fval, double* const dfdx,
+void Rosenbrock(double* xval, double a, double b, double* const fval,
+                double* const dfdx,
                 double* const gx, double* const dgdx)
 {
    // f = b*(y-x^2)^2 + (a-x)^2
