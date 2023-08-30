@@ -32,7 +32,7 @@ private:
    void setMMA(int nVar, int nCon);
    void freeGlobals();
    void freeMMA();
-   void subProblemFactory(int nVar, int nCon, enum SubProblemType type = CLASSIC);
+   void SubProblemFactory(int nVar, int nCon, enum SubProblemType type = CLASSIC);
 
 public:
 
@@ -86,7 +86,7 @@ public:
          int ittt, itto, itera;
          double epsi, rez, rezet, delz, dz, dzet, azz, stmxx, stmalfa, stmbeta, stmalbe, sum, stmalbexx, stminv, steg, zold, zetold,  
                 residunorm, residumax, resinew;
-         double *sum1, *epsvecn, *epsvecm, *ux1, *xl1, *plam, *qlam, *gvec, *dpsidx, *rex, *rey, *relam, *rexsi, *reeta, *remu, *res, *residu1, 
+         double *sum1, *ux1, *xl1, *plam, *qlam, *gvec, *dpsidx, *rex, *rey, *relam, *rexsi, *reeta, *remu, *res, *residu1, 
                 *residu2, *residu, *GG, *Puxinv, *Qxlinv, *delx, *dely, *dellam, *dellamyi, *diagx, *diagy, *diaglam, *diaglamyi, *blam, *bb, *bb1, *Alam, *AA, *AA1, *solut, *dlam, *dx, *dy, *dxsi, *deta, *dmu, *Axx, *axz, *ds, *xx, *dxx, *stepxx, *stepalfa, *stepbeta, *xold, *yold, *lamold, *xsiold, *etaold, *muold, *sold;
 
          void setSubProb(int nVar, int nCon);
