@@ -91,8 +91,8 @@ public:
              residunorm, residumax, resinew;
       double *sum1, *ux1, *xl1, *plam, *qlam, *gvec, *residu, *GG, *Puxinv, *Qxlinv,
              *delx, *dely, *dellam, *dellamyi, *diagx, *diagy, *diaglam, *diaglamyi, *bb,
-             *bb1, *Alam, *AA, *AA1, *solut, *dlam, *dx, *dy, *dxsi, *deta, *dmu, *Axx, *axz,
-             *ds, *xx, *dxx, *stepxx, *stepalfa, *stepbeta, *xold, *yold, *lamold, *xsiold,
+             *bb1, *Alam, *AA, *AA1, *dlam, *dx, *dy, *dxsi, *deta, *dmu, *Axx, *axz, *ds,
+             *xx, *dxx, *stepxx, *stepalfa, *stepbeta, *xold, *yold, *lamold, *xsiold,
              *etaold, *muold, *sold;
 
       void setSubProb(int nVar, int nCon);
@@ -114,8 +114,8 @@ public:
    class SubProblemClassicMPI : public SubProblemBase
    {
    private:
-      void setSubProb(int nVar, int nCon) {};
-      void freeSubProb() {};
+      void setSubProb(int nVar, int nCon);
+      void freeSubProb();
 
    public:
       SubProblemClassicMPI(MMA* mma, int nVar, int nCon);
