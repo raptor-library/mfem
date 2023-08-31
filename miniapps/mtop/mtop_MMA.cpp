@@ -32,6 +32,7 @@
 #include "mtop_MMA.hpp"
 #include <fstream>
 #include <math.h>
+#include <mpi.h>
 
 #ifndef MFEM_USE_LAPACK
 //mfem::mfem_error("MMA relies on LAPACK. Please compile with MFEM_USE_LAPACK");
@@ -46,7 +47,7 @@ namespace mma
 //Constructors
 // ----------------------------------------------------------------------
 MMA::MMA(int nVar, int nCon, double *xval, double *xxmin, double *xxmax,
-         enum SubProblemType type )
+         SubProblemType type)
 {
    this->setGlobals(nVar, nCon);
    this->setMMA(nVar, nCon);
@@ -69,7 +70,6 @@ MMA::SubProblemClassicMPI::SubProblemClassicMPI(MMA* mma, int nVar,
 {
    this->setSubProb(nVar, nCon);
 }
-
 
 
 void MMA::Update(int iter, double* const fval, double* const dfdx,
@@ -411,10 +411,7 @@ void MMA::SubProblemClassic::Perform()
             for (int j = 0; j < nVar; j++)
             {
                gvec[i] += mma->P[i * nVar + j] / ux1[j] + mma->Q[i * nVar + j] / xl1[j];
-               Puxinv[i * nVar + j] = mma->P[i * nVar + j] / (ux1[j] * ux1[j]);
-               Qxlinv[i * nVar + j] = mma->Q[i * nVar + j] / (xl1[j] * xl1[j]);
-
-               GG[i * nVar + j] = Puxinv[i * nVar + j] - Qxlinv[i * nVar + j];
+               GG[i * nVar + j] = mma->P[i * nVar + j] / (ux1[j] * ux1[j]) - mma->Q[i * nVar + j] / (xl1[j] * xl1[j]);
             }
 
             dely[i] = mma->c[i] + mma->d[i] * mma->y[i] - mma->lam[i] - epsi / mma->y[i];
@@ -983,8 +980,6 @@ void MMA::SubProblemClassic::setSubProb(int nVar, int nCon)
    gvec = new double[nCon];
    residu = new double[3 * nVar + 4 * nCon + 2];
    GG = new double[nVar * nCon];
-   Puxinv = new double[nVar * nCon];
-   Qxlinv = new double[nVar * nCon];
    delx = new double[nVar];
    dely = new double[nCon];
    dellam = new double[nCon];
@@ -1033,8 +1028,6 @@ void MMA::SubProblemClassic::freeSubProb()
    delete[] gvec;
    delete[] residu;
    delete[] GG;
-   delete[] Puxinv;
-   delete[] Qxlinv;
    delete[] delx;
    delete[] dely;
    delete[] dellam;
@@ -1079,6 +1072,16 @@ void MMA::SubProblemClassicMPI::Perform()
    MMA* mma = this->mma_ptr;
    int nCon = mma->nCon;
    int nVar = mma->nVar;
+
+   int rank, size;
+   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   MPI_Comm_size(MPI_COMM_WORLD, &size);
+   int nConLocal = nCon / size;
+   int nConRemainder = nCon % size;
+   double start = rank * nConLocal;
+   double end = (rank + 1) * nConLocal;
+
+
    ittt = 0;
    itto = 0;
    epsi = 1.0;
@@ -1269,10 +1272,7 @@ void MMA::SubProblemClassicMPI::Perform()
             for (int j = 0; j < nVar; j++)
             {
                gvec[i] += mma->P[i * nVar + j] / ux1[j] + mma->Q[i * nVar + j] / xl1[j];
-               Puxinv[i * nVar + j] = mma->P[i * nVar + j] / (ux1[j] * ux1[j]);
-               Qxlinv[i * nVar + j] = mma->Q[i * nVar + j] / (xl1[j] * xl1[j]);
-
-               GG[i * nVar + j] = Puxinv[i * nVar + j] - Qxlinv[i * nVar + j];
+               GG[i * nVar + j] = mma->P[i * nVar + j] / (ux1[j] * ux1[j]) - mma->Q[i * nVar + j] / (xl1[j] * xl1[j]);
             }
 
             dely[i] = mma->c[i] + mma->d[i] * mma->y[i] - mma->lam[i] - epsi / mma->y[i];
@@ -1769,8 +1769,6 @@ void MMA::SubProblemClassicMPI::setSubProb(int nVar, int nCon)
    gvec = new double[nCon];
    residu = new double[3 * nVar + 4 * nCon + 2];
    GG = new double[nVar * nCon];
-   Puxinv = new double[nVar * nCon];
-   Qxlinv = new double[nVar * nCon];
    delx = new double[nVar];
    dely = new double[nCon];
    dellam = new double[nCon];
@@ -1819,8 +1817,6 @@ void MMA::SubProblemClassicMPI::freeSubProb()
    delete[] gvec;
    delete[] residu;
    delete[] GG;
-   delete[] Puxinv;
-   delete[] Qxlinv;
    delete[] delx;
    delete[] dely;
    delete[] dellam;
@@ -2036,7 +2032,7 @@ void MMA::freeMMA()
    delete[] xl1;
 }
 
-void MMA::SubProblemFactory(int nVar, int nCon, enum SubProblemType type)
+void MMA::SubProblemFactory(int nVar, int nCon, SubProblemType type)
 {
    switch (type)
    {

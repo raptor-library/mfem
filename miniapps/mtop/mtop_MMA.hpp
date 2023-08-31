@@ -11,13 +11,6 @@ class MMA
 {
 private:
 
-   enum SubProblemType
-   {
-      CLASSIC,
-      MPIClassic,
-      ENDENUM
-   };
-
    // Private: MMA-specific
    double raa0, move, albefa, asyinit, asyincr, asydecr, xmamieps, lowmin, lowmax,
           uppmin, uppmax, zz;
@@ -33,9 +26,15 @@ private:
    void setMMA(int nVar, int nCon);
    void freeGlobals();
    void freeMMA();
-   void SubProblemFactory(int nVar, int nCon, enum SubProblemType type = CLASSIC);
 
 public:
+
+   enum SubProblemType
+      {
+         CLASSIC,
+         MPIClassic,
+         ENDENUM
+      };
 
    // Local vectors
    double *a, *b, *c, *d;
@@ -50,7 +49,7 @@ public:
 
    // Construct using subproblem
    MMA(int nVar, int nCon, double *xval, double *xxmin, double *xxmax,
-       enum SubProblemType type = CLASSIC );
+       SubProblemType type = CLASSIC );
 
    //MMA(Comm, int nVar, int nCon, int iter)
    //{
@@ -89,11 +88,10 @@ public:
       double epsi, rez, rezet, delz, dz, dzet, azz, stmxx, stmalfa, stmbeta, stmalbe,
              sum, stmalbexx, stminv, steg, zold, zetold,
              residunorm, residumax, resinew;
-      double *sum1, *ux1, *xl1, *plam, *qlam, *gvec, *residu, *GG, *Puxinv, *Qxlinv,
-             *delx, *dely, *dellam, *dellamyi, *diagx, *diagy, *diaglam, *diaglamyi, *bb,
-             *bb1, *Alam, *AA, *AA1, *dlam, *dx, *dy, *dxsi, *deta, *dmu, *Axx, *axz, *ds,
-             *xx, *dxx, *stepxx, *stepalfa, *stepbeta, *xold, *yold, *lamold, *xsiold,
-             *etaold, *muold, *sold;
+      double *sum1, *ux1, *xl1, *plam, *qlam, *gvec, *residu, *GG, *delx, *dely, *dellam, 
+             *dellamyi, *diagx, *diagy, *diaglam, *diaglamyi, *bb, *bb1, *Alam, *AA, *AA1,
+             *dlam, *dx, *dy, *dxsi, *deta, *dmu, *Axx, *axz, *ds, *xx, *dxx, *stepxx,
+             *stepalfa, *stepbeta, *xold, *yold, *lamold, *xsiold, *etaold, *muold, *sold;
 
       void setSubProb(int nVar, int nCon);
       void freeSubProb();
@@ -114,6 +112,15 @@ public:
    class SubProblemClassicMPI : public SubProblemBase
    {
    private:
+      int ittt, itto, itera;
+      double epsi, rez, rezet, delz, dz, dzet, azz, stmxx, stmalfa, stmbeta, stmalbe,
+             sum, stmalbexx, stminv, steg, zold, zetold,
+             residunorm, residumax, resinew;
+      double *sum1, *ux1, *xl1, *plam, *qlam, *gvec, *residu, *GG, *delx, *dely, *dellam, 
+             *dellamyi, *diagx, *diagy, *diaglam, *diaglamyi, *bb, *bb1, *Alam, *AA, *AA1,
+             *dlam, *dx, *dy, *dxsi, *deta, *dmu, *Axx, *axz, *ds, *xx, *dxx, *stepxx,
+             *stepalfa, *stepbeta, *xold, *yold, *lamold, *xsiold, *etaold, *muold, *sold;
+             
       void setSubProb(int nVar, int nCon);
       void freeSubProb();
 
@@ -129,6 +136,7 @@ public:
    //instance of class
    SubProblemBase *mSubProblem;
 
+   void SubProblemFactory(int nVar, int nCon, SubProblemType type);
 
    void initializeGlobals(int nVariables, int nConstraints, double *xval,
                           double *xxmin, double *xxmax)
@@ -150,9 +158,6 @@ public:
       {
          mfem::mfem_error("MMA::initialize() member data not initialized, call setGlobals first");
       }
-
-
-
    }
 
    void Update(int iter, double* const fval, double* const dfdx, double* const gx,

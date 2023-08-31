@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
    }
 
    // ---------- CALL CONSTRUCTOR -----------
-   MMA MMAmain(nVar, nCon, xval, xmin, xmax);
+   MMA MMAmain(nVar, nCon, xval, xmin, xmax, MMA::MPIClassic);
    std::ofstream mma;
    mma.open("mma.dat");
 
