@@ -175,25 +175,22 @@ int main(int argc, char *argv[])
 
    // design variable vector
    mfem::ParGridFunction designVarVec(&desFESpace_scalar_H1); designVarVec=0.3;
-   mfem::Vector vdens; vdens.SetSize(desFESpace_scalar_H1.GetTrueVSize());
-   vdens=0.3;
 
    mfem::ParGridFunction designVarVecFiltered(&desFESpace_scalar_H1);
    designVarVecFiltered=0.0; // <----------- FILTER
+
+   mfem::Vector & trueDesVar = designVarVec.GetTrueVector();
 
    if (initializeRandom)
    {
       for (int Ij = 0; Ij< desFESpace_scalar_H1.GetTrueVSize(); Ij++)
       {
-         designVarVec[Ij] = rand() / double(RAND_MAX);
+         trueDesVar[Ij] = rand() / double(RAND_MAX);
          //designVarVecFiltered[Ij] = rand() / double(RAND_MAX); // <--------------------------------------------- FILTER
-         vdens[Ij] = rand() / double(RAND_MAX);
       }
    }
 
-   designVarVec.SetFromTrueDofs(vdens);
-   //designVarVecFiltered.SetFromTrueDofs(vdens); // <------------------------------------------------------------- FILTER
-   //designVarVec.Print();
+   designVarVec.SetFromTrueVector();
 
    std::cout<<"opt"<<std::endl;
 
@@ -237,17 +234,22 @@ int main(int argc, char *argv[])
 
    if (true)
    {
-      int nVar = designVarVec.Size();
+      int nVar = trueDesVar.Size();
       int nCon = 1;
-      for (int li=0; li<nVar; li++)
-      {
-         xxmin[li]=1e-3;
-         xxmax[li]=1.0;
-      }
+      // for (int li=0; li<nVar; li++)
+      // {
+      //    xxmin[li]=1e-3;
+      //    xxmax[li]=1.0;
+      // }
+      mfem::ParGridFunction xxmin(&desFESpace_scalar_H1); xxmin=1e-3;
+      mfem::ParGridFunction xxmax(&desFESpace_scalar_H1); xxmax=1.0;
+
+      mfem::Vector & truexxmin = xxmin.GetTrueVector();
+      mfem::Vector & truexxmax = xxmax.GetTrueVector();
       //--------------------------------------------------------------------------------
       // Set Up MMA
-      MMA MMAmain(nVar, nCon, designVarVec.GetData(), xxmin.GetData(),
-                  xxmax.GetData());
+      MMA MMAmain(nVar, nCon, trueDesVar.GetData(), truexxmin.GetData(),
+                  truexxmax.GetData());
       //--------------------------------------------------------------------------------
       std::cout<<"opt iter"<<std::endl;
 
@@ -581,9 +583,13 @@ int main(int argc, char *argv[])
                     -1;                                      // V/V_max -1
          volgrad /= maxVolAllowed;
 
-         // MMA Routine: Update(iteration, objective, objective gradient, constraint(s), constraint gradients,  design variables)
-         MMAmain.Update(i, &ThermalCompliance, dThermCompds.GetData(), &con,
-                        DensGFFiltered.GetData(), designVarVec.GetData());
+         
+
+         // MMA Routine: Update(iteration, objective gradient, constraint(s), constraint gradients,  design variables)
+         MMAmain.Update(i, dThermCompds.GetData(), &con,
+                        DensGFFiltered.GetData(), trueDesVar.GetData());
+
+         designVarVec.SetFromTrueVector();
          //std::cout << "Con = " << con << ", Obj = " << ThermalCompliance << std::endl;
          {
 
