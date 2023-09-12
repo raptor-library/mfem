@@ -179,7 +179,7 @@ void MMA::Update(int iter, double* const dfdx,
 // ----------------------- SUBPROBLEMS -----------------------------
 // -----------------------------------------------------------------
 void MMA::SubProblemClassic::Perform(double* const dfdx, double* const gx, double* const dgdx, double* const xval)
-{
+{   
    MMA* mma = this->mma_ptr;
    int nCon = mma->nCon;
    int nVar = mma->nVar;
@@ -497,12 +497,16 @@ void MMA::SubProblemClassic::Perform(double* const dfdx, double* const gx, doubl
             {
                for (int j = 0; j < nCon; j++)
                {
-                  AA1[i * nCon + j] = Alam[i * nCon + j];
+                  AA1[i * (nCon + 1) + j] = Alam[i * nCon + j];
                }
-               AA1[nCon * nCon + i] = mma->a[i];
-               AA1[nCon * nCon + nCon + i] = mma->a[i];
+               AA1[i * (nCon + 1) + nCon] = mma->a[i];
             }
-            AA1[nCon * nCon + nCon + nCon] = -mma->zet / mma->z;
+            for (int i = 0; i < nCon; i++)
+            {
+               AA1[nCon * (nCon + 1) + i] = mma->a[i];
+            }
+            AA1[(nCon + 1) * (nCon + 1) - 1] = -mma->zet / mma->z;
+            
 
             // ----------------------------------------------------------------------------
             //bb1 = AA1\bb1 --> solve linear system of equations using LAPACK
@@ -513,12 +517,18 @@ void MMA::SubProblemClassic::Perform(double* const dfdx, double* const gx, doubl
             int ldb = nLAP;
             int* ipiv = new int[nLAP];
             dgesv_(&nLAP, &nrhs, AA1, &lda, ipiv, bb1, &ldb, &info);
-            delete[] ipiv;
-            for (int i = 0; i < nCon; i++)
-            {
-               dlam[i] = bb1[i];
+            if (info == 0) {
+               delete[] ipiv;
+               for (int i = 0; i < nCon; i++)
+               {
+                  dlam[i] = bb1[i];
+               }
+               dz = bb1[nCon];
+            } else if (info > 0) {
+               std::cerr << "Error: matrix is singular." << std::endl;
+            } else {
+               std::cerr << "Error: Argument " << info << " has illegal value." << std::endl;
             }
-            dz = bb1[nCon];
             // ----------------------------------------------------------------------------
             //dx = -(GG'*dlam)./diagx - delx./diagx;
             for (int i = 0; i < nVar; i++)
@@ -914,14 +924,12 @@ void MMA::SubProblemClassic::Perform(double* const dfdx, double* const gx, doubl
          }
          steg = steg * 2.0;
       }
-
       if (ittt > 198)
       {
          printf("Warning: Maximum number of iterations reached in subsolv.\n");
       }
       epsi = 0.1 * epsi;
    }
-   //results.close();
    // should return x, y, z, lam, xsi, eta, mu, zet, s
 }
 double MMA::SubProblemClassic::kktcheck(double* y, double* const dfdx,
@@ -1110,12 +1118,17 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
    MPI_Comm_rank(mma->comm, &rank);
    MPI_Comm_size(mma->comm, &size);
    int nVarGlobal = size * nVar;
+   printf("rank = %d\n", rank);
+
+   std::ofstream subresult;
+   if (rank == 1)
+   {
+      subresult.open("subproblem.dat", std::ios::app);
+   }
 
    double global_max = 0.0;
    double global_norm = 0.0;
    double* gvec_local = new double[nCon];
-
-   
 
    double rez = 0.0;
 
@@ -1161,6 +1174,10 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
       getDelta(i);
       p0[i] = ( std::max(dfdx[i], 0.0) + 0.001 * (std::max(dfdx[i], 0.0) + std::max(-dfdx[i], 0.0)) + raa0 / xmami[i]) * ux1[i] * ux1[i];
       q0[i] = ( std::max(-dfdx[i], 0.0) + 0.001 * (std::max(dfdx[i], 0.0) + std::max(-dfdx[i], 0.0)) + raa0 / xmami[i]) * xl1[i] * xl1[i];
+      if (rank == 1)
+      {
+         subresult << p0[i] << " " << q0[i] << std::endl;
+      }
    }
    // P = max(dgdx,0)
    // Q = max(-dgdx,0)
@@ -1177,7 +1194,7 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
          // b = P/ux1 + Q/xl1 - gx
          b[i] += P[i * nVar + j] / ux1[j] + Q[i * nVar + j] / xl1[j];
       }
-      b[i] -= gx[i];
+      b[i] -= gx[i];      
    }
 
    for (int i = 0; i < nVar; i++)
@@ -1324,13 +1341,6 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
                bb1[j] = -bb1[j] + dellam[j] + dely[j] / diagy[j];
             }
             bb1[nCon] = delz;
-            if (rank == 0)
-            {
-               printf("Processor %d, bb1 = %f\n", rank, bb1[0]);
-               printf("Processor %d, bb1 = %f\n", rank, bb1[1]);
-            }
-            
-            
 
             // Alam = spdiags(diaglamyi,0,m,m) + GG*spdiags(diagxinv,0,n,n)*GG';
             for (int i = 0; i < nCon; i++)
@@ -1375,15 +1385,17 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
                //       a'    -zet/z];
                for (int i = 0; i < nCon; i++)
                {
-                  // ------------------------------------------------ Matrix vector product --------------------
                   for (int j = 0; j < nCon; j++)
                   {
-                     AA1[i * nCon + j] = Alam[i * nCon + j];
+                     AA1[i * (nCon + 1) + j] = Alam[i * nCon + j];
                   }
-                  AA1[nCon * nCon + i] = mma->a[i];
-                  AA1[nCon * nCon + nCon + i] = mma->a[i];
+                  AA1[i * (nCon + 1) + nCon] = mma->a[i];
                }
-               AA1[nCon * nCon + nCon + nCon] = -mma->zet / mma->z;
+               for (int i = 0; i < nCon; i++)
+               {
+                  AA1[nCon * (nCon + 1) + i] = mma->a[i];
+               }
+               AA1[(nCon + 1) * (nCon + 1) - 1] = -mma->zet / mma->z;
 
             
                // -------------------------------------------------------------------
@@ -1395,16 +1407,16 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
                int ldb = nLAP;
                int* ipiv = new int[nLAP];
                dgesv_(&nLAP, &nrhs, AA1, &lda, ipiv, bb1, &ldb, &info);
-               delete[] ipiv;
-               printf("bb1 = [%f %f]\n", bb1[0], bb1[1]);
+               if (info == 0) {
+                  delete[] ipiv;
+               } else if (info > 0) {
+                  std::cerr << "Error: matrix is singular." << std::endl;
+               } else {
+                  std::cerr << "Error: Argument " << info << " has illegal value." << std::endl;
+               }
             }
 
             MPI_Bcast(bb1, nCon + 1, MPI_DOUBLE, 0, mma->comm);
-            if (rank == 0)
-            {
-               printf("bb1 = [%f %f]\n", bb1[0], bb1[1]);
-            }
-
             for (int i = 0; i < nCon; i++)
             {
                dlam[i] = bb1[i];
