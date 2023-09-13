@@ -1338,17 +1338,6 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
             }
             bb1[nCon] = delz;
 
-
-
-
-
-
-
-
-
-
-
-
             // Alam = spdiags(diaglamyi,0,m,m) + GG*spdiags(diagxinv,0,n,n)*GG';
             for (int i = 0; i < nCon; i++)
             {
