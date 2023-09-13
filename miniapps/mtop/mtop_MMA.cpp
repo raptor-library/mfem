@@ -1118,17 +1118,14 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
    MPI_Comm_rank(mma->comm, &rank);
    MPI_Comm_size(mma->comm, &size);
    int nVarGlobal = size * nVar;
-   printf("rank = %d\n", rank);
-
-   std::ofstream subresult;
-   if (rank == 1)
-   {
-      subresult.open("subproblem.dat", std::ios::app);
-   }
 
    double global_max = 0.0;
    double global_norm = 0.0;
+   double stmxx_global = 0.0;
+   double stmalfa_global = 0.0;
+   double stmbeta_global = 0.0;
    double* gvec_local = new double[nCon];
+   double* b_local = new double[nCon];
 
    double rez = 0.0;
 
@@ -1157,6 +1154,7 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
    for (int i = 0; i < nCon; i++)
    {
       b[i] = 0.0;
+      b_local[i] = 0.0;
    }
 
    for (int i = 0; i < nVar; i++)
@@ -1174,10 +1172,6 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
       getDelta(i);
       p0[i] = ( std::max(dfdx[i], 0.0) + 0.001 * (std::max(dfdx[i], 0.0) + std::max(-dfdx[i], 0.0)) + raa0 / xmami[i]) * ux1[i] * ux1[i];
       q0[i] = ( std::max(-dfdx[i], 0.0) + 0.001 * (std::max(dfdx[i], 0.0) + std::max(-dfdx[i], 0.0)) + raa0 / xmami[i]) * xl1[i] * xl1[i];
-      if (rank == 1)
-      {
-         subresult << p0[i] << " " << q0[i] << std::endl;
-      }
    }
    // P = max(dgdx,0)
    // Q = max(-dgdx,0)
@@ -1192,8 +1186,13 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
          P[i * nVar + j] = (std::max(dgdx[i * nVar + j], 0.0) + 0.001 * (std::max(dgdx[i * nVar + j], 0.0) + std::max(-1*dgdx[i * nVar + j], 0.0)) + raa0 / xmami[j]) * ux1[j] * ux1[j];
          Q[i * nVar + j] = (std::max(-1*dgdx[i * nVar + j], 0.0) + 0.001 * (std::max(dgdx[i * nVar + j], 0.0) + std::max(-1*dgdx[i * nVar + j], 0.0)) + raa0 / xmami[j]) * xl1[j] * xl1[j];
          // b = P/ux1 + Q/xl1 - gx
-         b[i] += P[i * nVar + j] / ux1[j] + Q[i * nVar + j] / xl1[j];
-      }
+         b_local[i] += P[i * nVar + j] / ux1[j] + Q[i * nVar + j] / xl1[j];
+      }     
+   }
+   MPI_Allreduce(b_local, b, nCon, MPI_DOUBLE, MPI_SUM, mma->comm);
+
+   for (int i = 0; i < nCon; i++)
+   {
       b[i] -= gx[i];      
    }
 
@@ -1236,17 +1235,16 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
             gvec_local[i] += P[i * nVar + j] / ux1[j] + Q[i * nVar + j] / xl1[j];
          }
       }
-
       MPI_Allreduce(gvec_local, gvec, nCon, MPI_DOUBLE, MPI_SUM, mma->comm);
 
-      residu = getResidual();
+      residu = getResidual(rank);
       global_norm = 0.0;
-      global_max = 0.0;
+      global_max = 0.0;      
       MPI_Allreduce(&residu[1], &global_norm, 1, MPI_DOUBLE, MPI_SUM, mma->comm);
       MPI_Allreduce(&residu[0], &global_max, 1, MPI_DOUBLE, MPI_MAX, mma->comm);
       residunorm = std::sqrt(global_norm);
-      residumax = global_max;
-
+      residumax = global_max;    
+      
       ittt = 0;
 
       while (residumax > 0.9 * epsi && ittt < 200)
@@ -1254,7 +1252,7 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
          ittt++;
          for (int i = 0; i < nVar; i++)
          {
-            getDelta(i);
+            getDelta(i);         
             // plam = P' * lam, qlam = Q' * lam
             plam[i] = p0[i];
             qlam[i] = q0[i];
@@ -1297,15 +1295,13 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
                diagx[i] = 2 * (plam[i] / (ux1[i] * ux1[i] * ux1[i]) + qlam[i] /
                                (xl1[i] * xl1[i] * xl1[i])) + mma->xsi[i] / (mma->x[i] - alfa[i]) +
                           mma->eta[i] / (beta[i] - mma->x[i]);
-            }
+            }        
          }
 
-         delz = mma->a0 - epsi / mma->z;
          for (int i = 0; i < nCon; i++)
          {
             gvec_local[i] = 0.0;
             // gvec = P/ux + Q/xl
-            // ------------------------------------------------ Matrix vector product -------------------- MPI HERE 
             for (int j = 0; j < nVar; j++)
             {
                gvec_local[i] += P[i * nVar + j] / ux1[j] + Q[i * nVar + j] / xl1[j];
@@ -1314,6 +1310,7 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
          }
          MPI_Allreduce(gvec_local, gvec, nCon, MPI_DOUBLE, MPI_SUM, mma->comm);
 
+         delz = mma->a0 - epsi / mma->z;
          for (int i = 0; i < nCon; i++)
          {
             dely[i] = mma->c[i] + mma->d[i] * mma->y[i] - mma->lam[i] - epsi / mma->y[i];
@@ -1321,7 +1318,7 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
             dellam[i] = gvec[i] - mma->a[i] * mma->z - mma->y[i] - b[i] + epsi /
                         mma->lam[i];
             diagy[i] = mma->d[i] + mma->mu[i] / mma->y[i];
-            diaglamyi[i] = mma->s[i] / mma->lam[i] + 1.0 / diagy[i];
+            diaglamyi[i] = mma->s[i] / mma->lam[i] + 1.0 / diagy[i]; 
          }
 
          if (nCon < (nVar*size) )
@@ -1332,7 +1329,6 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
             for (int j = 0; j < nCon; j++)
             {
                sum = 0.0;
-               // ------------------------------------------------ Matrix vector product -------------------- MPI HERE
                for (int i = 0; i < nVar; i++)
                {
                   sum += GG[j * nVar + i] * (delx[i] / diagx[i]);
@@ -1342,14 +1338,24 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
             }
             bb1[nCon] = delz;
 
+
+
+
+
+
+
+
+
+
+
+
             // Alam = spdiags(diaglamyi,0,m,m) + GG*spdiags(diagxinv,0,n,n)*GG';
             for (int i = 0; i < nCon; i++)
             {
                // Axx = GG*spdiags(diagxinv,0,n,n);
-               // ------------------------------------------------ Matrix vector product -------------------- MPI HERE
                for (int k = 0; k < nVar; k++)
                {
-                  Axx[i * nVar + k] = GG[k * nCon + i] / diagx[k];
+                  Axx[i * nVar + k] = GG[i * nVar + k] / diagx[k];
                }
             }
             // Alam = spdiags(diaglamyi,0,m,m) + Axx*GG';
@@ -1359,14 +1365,12 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
                for (int j = 0; j < nCon; j++)
                {
                   Alam_local[i * nCon + j] = 0.0;
-                  // ------------------------------------------------ Matrix matrix product --------------------
                   for (int k = 0; k < nVar; k++)
                   {
                      Alam_local[i * nCon + j] += Axx[i * nVar + k] * GG[j * nVar + k];
                   }
                }
             }
-
             // Append all vectors to single proc
             MPI_Reduce(Alam_local, Alam, nCon * nCon, MPI_DOUBLE, MPI_SUM, 0, mma->comm);
             if (rank == 0)
@@ -1396,7 +1400,6 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
                   AA1[nCon * (nCon + 1) + i] = mma->a[i];
                }
                AA1[(nCon + 1) * (nCon + 1) - 1] = -mma->zet / mma->z;
-
             
                // -------------------------------------------------------------------
                //bb1 = AA1\bb1 --> solve linear system of equations using LAPACK
@@ -1416,18 +1419,18 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
                }
             }
 
-            MPI_Bcast(bb1, nCon + 1, MPI_DOUBLE, 0, mma->comm);
+            MPI_Bcast(bb1, nCon + 1, MPI_DOUBLE, 0, mma->comm);          
+            
             for (int i = 0; i < nCon; i++)
             {
                dlam[i] = bb1[i];
             }
             dz = bb1[nCon];
-            // -------------------------------------------------------------------
+               // -------------------------------------------------------------------
             //dx = -(GG'*dlam)./diagx - delx./diagx;
             for (int i = 0; i < nVar; i++)
             {
                sum = 0.0;
-               // ------------------------------------------------ Vector vector product --------------------
                for (int j = 0; j < nCon; j++)
                {
                   sum += GG[j * nVar + i] * dlam[j];
@@ -1435,6 +1438,7 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
                dx[i] = -sum / diagx[i] - delx[i] / diagx[i];
             }
          }
+         // ---------- the case nCon > nVar has been verified in serial, but is not compliant with parallel runs yet --------
          else
          {
             azz = mma->zet / mma->z;
@@ -1547,27 +1551,33 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
             }
          }
 
-         stmxx = 0.0;
          dzet = -mma->zet + epsi / mma->z - mma->zet * dz / mma->z;
          for (int i = 0; i < nCon; i++)
          {
             dy[i] = -dely[i] / diagy[i] + dlam[i] / diagy[i];
             dmu[i] = -mma->mu[i] + epsi / mma->y[i] - (mma->mu[i] * dy[i]) / mma->y[i];
             ds[i] = -mma->s[i] + epsi / mma->lam[i] - (mma->s[i] * dlam[i]) / mma->lam[i];
+         }
 
-            step = -1.01*(dy[i] / mma->y[i]); //y
+         stmxx = 0.0;
+         if (rank == 0)
+         {
+            for (int i = 0; i < nCon; i++)
+            {
+               step = -1.01*(dy[i] / mma->y[i]); //y
+               stmxx = std::max(step, stmxx);
+               step = -1.01*(dlam[i] / mma->lam[i]); //lam
+               stmxx = std::max(step, stmxx);
+               step = -1.01*(dmu[i] / mma->mu[i]); //mu
+               stmxx = std::max(step, stmxx);
+               step = -1.01*(ds[i] / mma->s[i]); //s
+               stmxx = std::max(step, stmxx);
+            }
+            step = -1.01*(dz / mma->z); //z
             stmxx = std::max(step, stmxx);
-            step = -1.01*(dlam[i] / mma->lam[i]); //lam
-            stmxx = std::max(step, stmxx);
-            step = -1.01*(dmu[i] / mma->mu[i]); //mu
-            stmxx = std::max(step, stmxx);
-            step = -1.01*(ds[i] / mma->s[i]); //s
+            step = -1.01*(dzet / mma->zet); //zet
             stmxx = std::max(step, stmxx);
          }
-         step = -1.01*(dz / mma->z); //z
-         stmxx = std::max(step, stmxx);
-         step = -1.01*(dzet / mma->zet); //zet
-         stmxx = std::max(step, stmxx);
 
          for (int i = 0; i < nVar; i++)
          {
@@ -1627,8 +1637,11 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
             }
             stmbeta = std::max(step, stmbeta);
          }
-         stminv = std::max(std::max(std::max(stmalfa, stmbeta), stmxx), 1.0);
-         steg = 1.0 / stminv;
+         MPI_Allreduce(&stmxx, &stmxx_global, 1, MPI_DOUBLE, MPI_MAX, mma->comm);
+         MPI_Allreduce(&stmalfa, &stmalfa_global, 1, MPI_DOUBLE, MPI_MAX, mma->comm);
+         MPI_Allreduce(&stmbeta, &stmbeta_global, 1, MPI_DOUBLE, MPI_MAX, mma->comm);
+         stminv = std::max(std::max(std::max(stmalfa_global, stmbeta_global), stmxx_global), 1.0);
+         steg = 1.0 / stminv;         
 
          for (int i = 0; i < nVar; i++)
          {
@@ -1681,35 +1694,36 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
                   plam[i] += P[j * nVar + i] * mma->lam[j];
                   qlam[i] += Q[j * nVar + i] * mma->lam[j];
                }
-            }
+            }         
+            
             mma->z = zold + steg * dz;
             avoidNaN(&mma->z);
             mma->zet = zetold + steg * dzet;
 
-            // gvec = P/ux + Q/xl
             for (int i = 0; i < nCon; i++)
             {
-               gvec[i] = 0.0;
+               // gvec = P/ux + Q/xl
+               gvec_local[i] = 0.0;
                for (int j = 0; j < nVar; j++)
                {
-                  gvec[i] += P[i * nVar + j] / ux1[j] + Q[i * nVar + j] / xl1[j];
+                  gvec_local[i] += P[i * nVar + j] / ux1[j] + Q[i * nVar + j] / xl1[j];
                }
             }
+            MPI_Allreduce(gvec_local, gvec, nCon, MPI_DOUBLE, MPI_SUM, mma->comm);         
 
-            residu = getResidual();
+            residu = getResidual(rank);
             global_norm = 0.0;
             MPI_Allreduce(&residu[1], &global_norm, 1, MPI_DOUBLE, MPI_SUM, mma->comm);
             
             resinew = std::sqrt(global_norm);
-            steg = steg / 2.0;
+            steg = steg / 2.0;         
          }
-         residu = getResidual();
+         residu = getResidual(rank);
          residunorm = resinew;
          MPI_Allreduce(&residu[0], &global_max, 1, MPI_DOUBLE, MPI_MAX, mma->comm);
          residumax = global_max;
          steg = steg * 2.0;
       }
-
 
       if (ittt > 198)
       {
@@ -1719,17 +1733,18 @@ void MMA::SubProblemClassicMPI::Perform(double* const dfdx, double* const gx, do
    }
    //results.close();
    delete[] gvec_local;
+   delete[] b_local;
 }
-double* MMA::SubProblemClassicMPI::getResidual()
+double* MMA::SubProblemClassicMPI::getResidual(int rank)
 {
    MMA* mma = this->mma_ptr;
    int nCon = mma->nCon;
    int nVar = mma->nVar;
 
    double residu2 = 0.0;
-   double* residual = new double[2]; //residumax and residunorm
-   residual[0] = 0.0;
-   residual[1] = 0.0;
+   double* residual = new double[2];
+   residual[0] = 0.0; // residual max
+   residual[1] = 0.0; // residual norm
    rez = mma->a0 - mma->zet; //rez
    for (int i = 0; i < nVar; i++)
    {
@@ -1754,25 +1769,28 @@ double* MMA::SubProblemClassicMPI::getResidual()
       residual[1] += residu2 * residu2;
    }
    residual[0] = std::max(residual[0], std::abs(rez));
-   residual[1] += rez * rez;
-   for (int i = 0; i < nCon; i++)
+   if (rank == 0)
    {
-      residu2 = mma->c[i] + mma->d[i] * mma->y[i] - mma->mu[i] - mma->lam[i]; //rey
-      residual[0] = std::max(residual[0], std::abs(residu2));
-      residual[1] += residu2 * residu2;
-      residu2 = gvec[i] - mma->a[i] * mma->z - mma->y[i] + mma->s[i] - b[i]; //relam
-      residual[0] = std::max(residual[0], std::abs(residu2));
-      residual[1] += residu2 * residu2;
-      residu2 = mma->mu[i] * mma->y[i] - epsi; //remu
-      residual[0] = std::max(residual[0], std::abs(residu2));
-      residual[1] += residu2 * residu2;
-      residu2 = mma->lam[i] * mma->s[i] - epsi; //res
+      residual[1] += rez * rez;
+      for (int i = 0; i < nCon; i++)
+      {
+         residu2 = mma->c[i] + mma->d[i] * mma->y[i] - mma->mu[i] - mma->lam[i]; //rey
+         residual[0] = std::max(residual[0], std::abs(residu2));
+         residual[1] += residu2 * residu2;
+         residu2 = gvec[i] - mma->a[i] * mma->z - mma->y[i] + mma->s[i] - b[i]; //relam
+         residual[0] = std::max(residual[0], std::abs(residu2));
+         residual[1] += residu2 * residu2;
+         residu2 = mma->mu[i] * mma->y[i] - epsi; //remu
+         residual[0] = std::max(residual[0], std::abs(residu2));
+         residual[1] += residu2 * residu2;
+         residu2 = mma->lam[i] * mma->s[i] - epsi; //res
+         residual[0] = std::max(residual[0], std::abs(residu2));
+         residual[1] += residu2 * residu2;
+      }
+      residu2 = mma->zet * mma->z - epsi; //rezet
       residual[0] = std::max(residual[0], std::abs(residu2));
       residual[1] += residu2 * residu2;
    }
-   residu2 = mma->zet * mma->z - epsi; //rezet
-   residual[0] = std::max(residual[0], std::abs(residu2));
-   residual[1] += residu2 * residu2;
 
    return residual;
 }

@@ -41,15 +41,19 @@
 //using namespace mfem;
 using namespace mma;
 
-void Rosenbrock(double* xval, double a, double b, double* const fval,
-                double* const dfdx, double* const gx, double* const dgdx);
 void MultiVar_Rosenbrock(double* xval, double a, double b, int nVar, int nCon, double* const fval,
                 double* const dfdx, double* const gx, double* const dgdx);
 
 int main(int argc, char *argv[])
 {
-   int nVar = 10;
+   int nVar = 12;
    int nCon = 5;
+
+   if (nCon > nVar)
+   {
+      std::cout << "The case nCon > nVar is verified in serial, but does not work in parallel (yet)." << std::endl;
+      exit(1);
+   }   
 
    mfem::MPI_Session mpi(argc, argv); // Initialize MPI (MPI Init)
    int rank, size;
@@ -69,7 +73,6 @@ int main(int argc, char *argv[])
    }
    nVar = nVar / size;
    
-   
    //Rosenbrock parameters
    double aR = 1.0;
    double bR = 100.0;
@@ -88,10 +91,12 @@ int main(int argc, char *argv[])
    double* const dgdxGlobal = new double[nVarGlobal * nCon];
    double* xmin = new double[nVar];
    double* xmax = new double[nVar];
+   double* xminGlobal = new double[nVarGlobal];
+   double* xmaxGlobal = new double[nVarGlobal];
    double* upper = new double[nVar];
    double* lower = new double[nVar];
    // Simulation parameters
-   int maxiter = 3;
+   int maxiter = 50;
    int restart = maxiter + 1;
    double norm2 = 0.0;
    double normInf = 0.0;
@@ -113,8 +118,9 @@ int main(int argc, char *argv[])
    for (int i = 0; i < nVarGlobal; i++)
    {
       xvalGlobal[i] = 0.0;
+      xminGlobal[i] = -2.0;
+      xmaxGlobal[i] = 2.0;
    }
-   
 
    // ---------- CALL CONSTRUCTOR -----------
    MMA MMAmain(communicator, nVar, nCon, xval, xmin, xmax, "mpiclassic" );
@@ -122,51 +128,74 @@ int main(int argc, char *argv[])
    mma.open("mma.dat");
    if (rank == 0)
    {
-   mma << xval[0] << "\n" << xval[1] << "\n" << xmax[0] << "\n" << xmax[1] << "\n"
-      << xmin[0] << "\n" << xmin[1] << std::endl;
+      for (int i = 0; i < nVarGlobal; i++)
+      {
+         mma << xvalGlobal[i] << std::endl;
+      }
+      for (int i = 0; i < nVarGlobal; i++)
+      {
+         mma << xminGlobal[i] << std::endl;
+      }
+      for (int i = 0; i < nVarGlobal; i++)
+      {
+         mma << xmaxGlobal[i] << std::endl;
+      }
    }
    
-   
-   //Rosenbrock(xval, aR, bR, fval, dfdx, gx, dgdx);
-   MultiVar_Rosenbrock(xvalGlobal, aR, bR, nVarGlobal, nCon, fval, dfdxGlobal, gx, dgdxGlobal);
-
+   MultiVar_Rosenbrock(xvalGlobal, aR, bR, nVarGlobal, nCon, fval, dfdxGlobal, gx, dgdxGlobal);   
    // Separate dfdx, dgdx into local and global based on rank
    for (int i = 0; i < nVar; i++)
    {
-      dfdx[i] = dfdxGlobal[i + rank * nVar];
-      for (int j = 0; j < nCon; j++)
+      dfdx[i] = dfdxGlobal[rank * nVar + i];
+   }
+   for (int j = 0; j < nCon; j++)
+   {
+      for (int i = 0; i < nVar; i++)
       {
-         dgdx[i + j * nVar] = dgdxGlobal[i + j * nVarGlobal + rank * nVar];
+         dgdx[j * nVar + i] = dgdxGlobal[rank*nVar + i + j * nVarGlobal];
       }
    }
 
-
    while (iter < maxiter)
    {
-
       // ----------------- RUN MMA --------------------
-      MMAmain.Update(iter, dfdx, gx, dgdx, xval);
+      MMAmain.Update(iter, dfdx, gx, dgdx, xval);      
       // Append local variable arrays into global array
-      MPI_Gather(xval, nVar, MPI_DOUBLE, xvalGlobal, nVar, MPI_DOUBLE, 0, communicator);    
+      MPI_Allgather(xval, nVar, MPI_DOUBLE, xvalGlobal, nVar, MPI_DOUBLE, communicator);    
       // ---------- UPDATE DESIGN & CONSTRAINTS -------
-      //Rosenbrock(xval, aR, bR, fval, dfdx, gx, dgdx);
       MultiVar_Rosenbrock(xvalGlobal, aR, bR, nVarGlobal, nCon, fval, dfdxGlobal, gx, dgdxGlobal);
       // Separate dfdx, dgdx into local based on rank
       for (int i = 0; i < nVar; i++)
       {
-         dfdx[i] = dfdxGlobal[i + rank * nVar];
-         for (int j = 0; j < nCon; j++)
+         dfdx[i] = dfdxGlobal[rank * nVar + i];
+      }
+      for (int j = 0; j < nCon; j++)
+      {
+         for (int i = 0; i < nVar; i++)
          {
-            dgdx[i + j * nVar] = dgdxGlobal[i + j * nVarGlobal + rank * nVar];
+            dgdx[j * nVar + i] = dgdxGlobal[rank*nVar + i + j * nVarGlobal];
          }
+         
       }
       // ---------- PRINT FOR VISUALIZATION------------
       lower = MMAmain.getLow();
       upper = MMAmain.getUpp();
+      MPI_Gather(lower, nVar, MPI_DOUBLE, xminGlobal, nVar, MPI_DOUBLE, 0, communicator);
+      MPI_Gather(upper, nVar, MPI_DOUBLE, xmaxGlobal, nVar, MPI_DOUBLE, 0, communicator);
       if (rank == 0)
       {
-         mma << xval[0] << "\n" << xval[1] << "\n" << upper[0] << "\n" << upper[1] <<
-         "\n" << lower[0] << "\n" << lower[1] << std::endl;
+         for (int i = 0; i < nVarGlobal; i++)
+         {
+            mma << xvalGlobal[i] << std::endl;
+         }
+         for (int i = 0; i < nVarGlobal; i++)
+         {
+            mma << xminGlobal[i] << std::endl;
+         }
+         for (int i = 0; i < nVarGlobal; i++)
+         {
+            mma << xmaxGlobal[i] << std::endl;
+         }
          // ------------- CHECK CONVERGENCE --------------
          if (MMAmain.getKKT() < tol)
          {
@@ -189,6 +218,8 @@ int main(int argc, char *argv[])
    delete[] dgdx;
    delete[] xmin;
    delete[] xmax;
+   delete[] xminGlobal;
+   delete[] xmaxGlobal;
    delete[] upper;
    delete[] lower;
    delete[] xvalGlobal;
@@ -198,31 +229,6 @@ int main(int argc, char *argv[])
    MPI_Finalize();
    return 0;
 }
-
-
-void Rosenbrock(double* xval, double a, double b, double* const fval,
-                double* const dfdx,
-                double* const gx, double* const dgdx)
-{
-   // f = b*(y-x^2)^2 + (a-x)^2
-   *fval = b * (xval[1] - xval[0]*xval[0])*(xval[1] - xval[0]*xval[0]) +
-           (a - xval[0])*(a - xval[0]);
-
-   dfdx[0] = -4.0*b*xval[0]*(xval[1] - xval[0]*xval[0]) - 2.0*(a - xval[0]);
-   dfdx[1] = 2.0*b*(xval[1] - xval[0]*xval[0]);
-
-   gx[0] = (xval[0] - 1.0)*(xval[0] - 1.0) + (xval[1] - 1.0)*(xval[1] - 1.0) - 4.0;
-   //gx[1] = xval[0] - 2;
-   //gx[2] = xval[1] - 1;
-
-   dgdx[0] = 2.0*(xval[0] - 1.0);
-   dgdx[1] = 2.0*(xval[1] - 1.0);
-   //dgdx[2] = 1.0;
-   //dgdx[3] = 0.0;
-   //dgdx[4] = 0.0;
-   //dgdx[5] = 1.0;
-}
-
 
 void MultiVar_Rosenbrock(double* xval, double a, double b, int nVar, int nCon, double* const fval,
                 double* const dfdx, double* const gx, double* const dgdx)
