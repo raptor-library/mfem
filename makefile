@@ -702,6 +702,7 @@ status info:
 	$(info MFEM_USE_GNUTLS        = $(MFEM_USE_GNUTLS))
 	$(info MFEM_USE_NETCDF        = $(MFEM_USE_NETCDF))
 	$(info MFEM_USE_PETSC         = $(MFEM_USE_PETSC))
+	$(info MFEM_USE_RAPTOR        = $(MFEM_USE_RAPTOR))
 	$(info MFEM_USE_SLEPC         = $(MFEM_USE_SLEPC))
 	$(info MFEM_USE_MPFR          = $(MFEM_USE_MPFR))
 	$(info MFEM_USE_SIDRE         = $(MFEM_USE_SIDRE))

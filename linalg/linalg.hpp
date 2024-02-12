@@ -65,6 +65,10 @@
 #include "petsc.hpp"
 #endif
 
+#ifdef MFEM_USE_RAPTOR
+#include "raptor.hpp"
+#endif
+
 #ifdef MFEM_USE_SLEPC
 #include "slepc.hpp"
 #endif

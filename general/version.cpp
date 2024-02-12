@@ -145,6 +145,9 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_PETSC
       "MFEM_USE_PETSC\n"
 #endif
+#ifdef MFEM_USE_RAPTOR
+      "MFEM_USE_RAPTOR\n"
+#endif
 #ifdef MFEM_USE_PUMI
       "MFEM_USE_PUMI\n"
 #endif
