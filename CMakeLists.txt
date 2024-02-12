@@ -266,6 +266,16 @@ if (MFEM_USE_MPI)
   # Parallel MFEM depends on hypre
   find_package(HYPRE REQUIRED)
   set(MFEM_HYPRE_VERSION ${HYPRE_VERSION})
+  if (MFEM_USE_RAPTOR)
+	find_package(raptor REQUIRED)
+	if (raptor_FOUND)
+      get_target_property(
+		RAPTOR_INCLUDE_DIRS raptor::raptor
+		INTERFACE_INCLUDE_DIRECTORIES)
+	  set(RAPTOR_FOUND TRUE)
+	  set(RAPTOR_LIBRARIES raptor::raptor)
+	endif()
+  endif()
   if (MFEM_USE_PETSC)
     find_package(PETSc REQUIRED)
     message(STATUS "Found PETSc version ${PETSC_VERSION}")
@@ -545,7 +555,7 @@ find_package(Threads REQUIRED)
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
-    SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
+    SUNDIALS PETSC RAPTOR SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
     ADIOS2 CUSPARSE MKL_CPARDISO MKL_PARDISO AMGX CALIPER CODIPACK
     BENCHMARK PARELAG MPI_CXX HIP HIPSPARSE MOONOLITH BLITZ ALGOIM ENZYME)

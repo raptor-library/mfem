@@ -13,6 +13,7 @@
 #include "sparsemat.hpp"
 #ifdef MFEM_USE_MPI
 #include "petsc.hpp"
+#include "raptor.hpp"
 #endif
 
 // Make sure that hypre and PETSc use the same size indices.
@@ -50,6 +51,14 @@ Operator::Type OperatorHandle::CheckType(Operator::Type tid)
          MFEM_ABORT("cannot use PETSc matrix formats: "
                     "MFEM is not built with PETSc support");
 #endif
+   case Operator::RAPTOR_ParCSR:
+   case Operator::RAPTOR_ParBSR:
+#ifdef MFEM_USE_RAPTOR
+	   break;
+#else
+	   MFEM_ABORT("cannot use Raptor matrix formats: "
+	              "MFEM is not built with Raptor support");
+#endif
       default:
          MFEM_ABORT("invalid Operator::Type, type_id = " << (int)type_id);
    }
@@ -81,6 +90,12 @@ void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, HYPRE_BigInt glob_size,
          oper = new PetscParMatrix(comm, glob_size, (PetscInt*)row_starts, diag,
                                    type_id);
          break;
+#endif
+#ifdef MFEM_USE_RAPTOR
+   case Operator::RAPTOR_ParCSR:
+   case Operator::RAPTOR_ParBSR:
+	   oper = new RaptorParMatrix(comm, glob_size, row_starts, diag, type_id);
+	   break;
 #endif
       default: MFEM_ABORT(not_supported_msg << type_id);
    }
@@ -152,6 +167,14 @@ void OperatorHandle::MakePtAP(OperatorHandle &A, OperatorHandle &P)
          pSet(mfem::RAP(A.As<PetscParMatrix>(), P.As<PetscParMatrix>()));
          break;
       }
+#endif
+#ifdef MFEM_USE_RAPTOR
+   case Operator::RAPTOR_ParBSR:
+   case Operator::RAPTOR_ParCSR:
+   {
+	   pSet(mfem::RAP(A.As<RaptorParMatrix>(), P.As<RaptorParMatrix>()));
+	   break;
+   }
 #endif
 #endif
       default: MFEM_ABORT(not_supported_msg << A.Type());
@@ -242,6 +265,26 @@ void OperatorHandle::ConvertFrom(OperatorHandle &A)
 #endif
          break;
       }
+      case Operator::RAPTOR_ParBSR:
+      case Operator::RAPTOR_ParCSR:
+      {
+	      switch (A.Type()) // source type id
+	      {
+	      case Operator::Hypre_ParCSR:
+#ifdef MFEM_USE_RAPTOR
+		      oper = new RaptorParMatrix(A.As<HypreParMatrix>(), Type());
+#endif
+		      break;
+	      default: break;
+	      }
+#ifdef MFEM_USE_RAPTOR
+	      if (!oper)
+	      {
+		      RaptorParMatrix *pA = A.Is<RaptorParMatrix>();
+		      if (pA->GetType() == Type()) { oper = pA; }
+	      }
+#endif
+      }
       default: break;
    }
    MFEM_VERIFY(oper != NULL, "conversion from type id = " << A.Type()
@@ -295,6 +338,16 @@ void OperatorHandle::EliminateRowsCols(OperatorHandle &A,
          MFEM_ABORT("type id = Operator::PETSC_* requires MFEM_USE_PETSC");
 #endif
          break;
+      }
+      case Operator::RAPTOR_ParBSR:
+      case Operator::RAPTOR_ParCSR:
+      {
+#ifdef MFEM_USE_RAPTOR
+	      pSet(A.As<RaptorParMatrix>()->EliminateRowsCols(ess_dof_list));
+#else
+	      MFEM_ABORT("type id = Operator::RAPTOR_* requires MFEM_USE_RAPTOR");
+#endif
+	      break;
       }
       default: MFEM_ABORT(not_supported_msg << A.Type());
    }
@@ -377,6 +430,17 @@ void OperatorHandle::EliminateBC(const OperatorHandle &A_e,
 #endif
          break;
       }
+   case Operator::RAPTOR_ParBSR:
+   case Operator::RAPTOR_ParCSR:
+   {
+#ifdef MFEM_USE_RAPTOR
+	   mfem::EliminateBC(*As<RaptorParMatrix>(), *A_e.As<RaptorParMatrix>(),
+	                     ess_dof_list, X, B);
+#else
+	   MFEM_ABORT("type id = Operator::RAPTOR_* required MFEM_USE_RAPTOR");
+#endif
+	   break;
+   }
       default: MFEM_ABORT(not_supported_msg << Type());
    }
 }

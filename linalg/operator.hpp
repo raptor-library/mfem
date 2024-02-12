@@ -291,6 +291,8 @@ public:
       PETSC_MATNEST,    ///< ID for class PetscParMatrix, MATNEST format.
       PETSC_MATHYPRE,   ///< ID for class PetscParMatrix, MATHYPRE format.
       PETSC_MATGENERIC, ///< ID for class PetscParMatrix, unspecified format.
+      RAPTOR_ParCSR,    ///< ID for class RaptorParMatrix, ParCSR format.
+      RAPTOR_ParBSR,    ///< ID for class RaptorParMatrix, ParBSR format.
       Complex_Operator, ///< ID for class ComplexOperator.
       MFEM_ComplexSparseMat, ///< ID for class ComplexSparseMatrix.
       Complex_Hypre_ParCSR,   ///< ID for class ComplexHypreParMatrix.

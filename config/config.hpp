@@ -137,6 +137,9 @@ constexpr real_t operator""_r(unsigned long long v)
 #ifdef MFEM_USE_PETSC
 #error Building with PETSc (MFEM_USE_PETSC=YES) requires MPI (MFEM_USE_MPI=YES)
 #endif
+#ifdef MFEM_USE_RAPTOR
+#error Building with Raptor (MFEM_USE_RAPTOR=YES) requires MPI (MFEM_USE_MPI=YES)
+#endif
 #ifdef MFEM_USE_SLEPC
 #error Building with SLEPc (MFEM_USE_SLEPC=YES) requires MPI (MFEM_USE_MPI=YES)
 #endif

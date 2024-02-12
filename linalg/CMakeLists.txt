@@ -80,6 +80,12 @@ if (MFEM_USE_MPI)
         slepc.hpp)
     endif()
   endif()
+  if (MFEM_USE_RAPTOR)
+	list(APPEND SRCS
+	  raptor.cpp)
+	list(APPEND HDRS
+	  raptor.hpp)
+  endif()
 endif()
 
 if (MFEM_USE_SUNDIALS)
