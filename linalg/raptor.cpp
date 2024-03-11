@@ -10,17 +10,23 @@
 // CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
-#include "general/error.hpp"
-#include <raptor/core/matrix.hpp>
 
 #ifdef MFEM_USE_MPI
 #ifdef MFEM_USE_RAPTOR
 
-#include "hypre.hpp"
-#include "linalg.hpp"
+#include <fstream>
 
 #include <raptor/core/par_matrix.hpp>
 #include <raptor/external/hypre_wrapper.hpp>
+#include <raptor/core/matrix.hpp>
+#include <raptor/core/types.hpp>
+#include <raptor/krylov/par_cg.hpp>
+#include <raptor/ruge_stuben/ruge_stuben_solver.hpp>
+
+#include "hypre.hpp"
+#include "linalg.hpp"
+#include "general/error.hpp"
+
 
 namespace {
 template <class T>
@@ -472,13 +478,40 @@ RaptorParMatrix::operator raptor::ParBSRMatrix * () const
 }
 
 
-RaptorSolver::RaptorSolver(raptor::ParMultilevel * t) : A(NULL), B(NULL), X(NULL),
-                                                        setup_called(false), target(t) {}
+void RaptorParMatrix::Print(const char *fname) const
+{
+	auto & diag = *mat->on_proc;
+	auto & offd = *mat->off_proc;
+
+	std::ofstream ofile(fname);
+	ofile.precision(14);
+	for (std::size_t i = 0; i < diag.n_rows; ++i) {
+		auto write_row = [&](const raptor::Matrix & m, const std::vector<int> & colmap) {
+			const auto & rowptr = m.idx1;
+			const auto & colind = m.idx2;
+			const auto & values = m.vals;
+			for (std::size_t off = rowptr[i]; off < rowptr[i+1]; ++off) {
+				ofile << mat->get_local_row_map()[i] << " "
+				      << colmap[colind[off]] << " "
+				      << std::scientific << values[off] << '\n';
+			}
+		};
+
+		write_row(diag, mat->get_on_proc_column_map());
+		write_row(offd, mat->get_off_proc_column_map());
+	}
+}
 
 
-RaptorSolver::RaptorSolver(raptor::ParMultilevel *t, const RaptorParMatrix *a)
-    : Solver(a->Height(), a->Width()), A(a), B(NULL), X(NULL),
-      setup_called(false), target(t) {}
+RaptorSolver::RaptorSolver() : A(NULL), B(NULL), X(NULL) {}
+RaptorSolver::RaptorSolver(const RaptorParMatrix * a) :
+	Solver(a->Height(), a->Width()), A(a), B(NULL), X(NULL) {}
+
+void RaptorSolver::Mult(const Vector & b, Vector & x) const
+{
+	WrapVectors(b, x);
+	Mult(*B, *X);
+}
 
 
 void RaptorSolver::WrapVectors(const Vector &b, Vector &x) const
@@ -495,16 +528,6 @@ void RaptorSolver::WrapVectors(const Vector &b, Vector &x) const
 }
 
 
-void RaptorSolver::Setup() const
-{
-	if (setup_called) return;
-
-	target->setup(const_cast<raptor::ParCSRMatrix*>(dynamic_cast<const raptor::ParCSRMatrix*>(A)));
-
-	setup_called = true;
-}
-
-
 void RaptorSolver::Mult(const RaptorParVector & b, RaptorParVector & x) const
 {
 	if (A == NULL) {
@@ -513,16 +536,14 @@ void RaptorSolver::Mult(const RaptorParVector & b, RaptorParVector & x) const
 	}
 
 	raptor::ParVector *xr = x;
-	raptor::ParVector *br = b;
+	const raptor::ParVector *br = b;
 
-	target->solve(*xr, *br);
-}
+	if (!iterative_mode) {
+		xr->set_const_value(0);
+	}
 
-
-void RaptorSolver::Mult(const Vector & b, Vector & x) const
-{
-	WrapVectors(b, x);
-	Mult(*B, *X);
+	Setup();
+	Solve(*br, *xr);
 }
 
 
@@ -530,15 +551,124 @@ RaptorSolver::~RaptorSolver()
 {
 	if (B) delete B;
 	if (X) delete X;
+}
+
+
+RaptorMultilevel::RaptorMultilevel(raptor::ParMultilevel * t) : RaptorSolver(),
+                                                                setup_called(false),
+                                                                target(t), iters(0) {}
+
+
+RaptorMultilevel::RaptorMultilevel(raptor::ParMultilevel *t,
+                                   const RaptorParMatrix *a)
+	: RaptorSolver(a),
+      setup_called(false), target(t), iters(0) {}
+
+
+void RaptorMultilevel::Setup() const
+{
+	if (setup_called) return;
+
+	raptor::ParCSRMatrix *Ar = *A;
+	target->setup(Ar);
+
+	setup_called = true;
+}
+
+
+void RaptorMultilevel::Solve(const raptor::ParVector & b, raptor::ParVector & x) const
+{
+	iters = target->solve(x, const_cast<raptor::ParVector&>(b));
+}
+
+
+void RaptorMultilevel::PrintResiduals() const
+{
+	target->print_residuals(iters);
+}
+
+
+void RaptorMultilevel::SetOperator(const Operator &op)
+{
+	const RaptorParMatrix *new_A = dynamic_cast<const RaptorParMatrix*>(&op);
+	MFEM_VERIFY(new_A, "new Operator must be a RaptorParMatrix");
+
+	height = new_A->Height();
+	width  = new_A->Width();
+	A = const_cast<RaptorParMatrix*>(new_A);
+	setup_called = 0;
+	delete X;
+	delete B;
+	X = B = NULL;
+}
+
+RaptorMultilevel::~RaptorMultilevel()
+{
 	delete target;
 }
 
 
 RaptorRugeStuben::RaptorRugeStuben()
-    : RaptorSolver(new raptor::ParRugeStubenSolver()) {}
+	: RaptorMultilevel(new raptor::ParRugeStubenSolver()) {
+	SetDefaultOptions();
+}
 
 RaptorRugeStuben::RaptorRugeStuben(const RaptorParMatrix &A)
-	: RaptorSolver(new raptor::ParRugeStubenSolver(), &A) {}
+	: RaptorMultilevel(new raptor::ParRugeStubenSolver(), &A) {
+	SetDefaultOptions();
+}
+
+void RaptorRugeStuben::SetDefaultOptions()
+{
+	target->max_iterations = 1; // default for use as preconditioner
+	target->relax_type = raptor::relax_t::Jacobi;
+	target->strength_type = raptor::strength_t::Symmetric;
+}
+
+
+RaptorPCG::RaptorPCG(MPI_Comm) : maxiter_(1000), rtol_(1e-8), precond_(NULL) {
+	iterative_mode = true;
+}
+
+
+void RaptorPCG::SetOperator(const Operator & op)
+{
+	const RaptorParMatrix *new_A = dynamic_cast<const RaptorParMatrix*>(&op);
+	MFEM_VERIFY(new_A, "new Operator must be a RaptorParMatrix!");
+
+   height = new_A->Height();
+   width  = new_A->Width();
+
+   A = const_cast<RaptorParMatrix*>(new_A);
+   if (precond_) {
+	   precond_->SetOperator(*A);
+	   SetPreconditioner(*precond_);
+   }
+
+   delete X;
+   delete B;
+   B = X = NULL;
+}
+
+
+void RaptorPCG::SetPreconditioner(RaptorMultilevel & ml)
+{
+	precond_ = &ml;
+}
+
+
+void RaptorPCG::Solve(const raptor::ParVector & b, raptor::ParVector & x) const
+{
+	raptor::ParCSRMatrix *parcsr_A = *A;
+	raptor::ParMultilevel *ml = *precond_;
+
+	precond_->Setup();
+
+	std::vector<double> res;
+	raptor::PCG(parcsr_A, ml, x, const_cast<raptor::ParVector&>(b), res, rtol_, maxiter_);
+}
+
+
 
 RaptorParMatrix * RAP(RaptorParMatrix * A, RaptorParMatrix * P)
 {

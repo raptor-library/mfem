@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "linalg/vector.hpp"
+#include <raptor/multilevel/par_multilevel.hpp>
 
 #ifdef MFEM_USE_RAPTOR
 #ifdef MFEM_USE_MPI
@@ -85,6 +86,8 @@ public:
 		return mat->global_num_cols;
 	}
 
+	void Print(const char *fname) const;
+
 private:
 	void ConstructBlockDiagCSR(MPI_Comm comm, HYPRE_BigInt glob_size,
 	                           HYPRE_BigInt *row_starts, SparseMatrix *diag);
@@ -104,13 +107,13 @@ private:
 class RaptorSolver : public Solver
 {
 public:
-	RaptorSolver(raptor::ParMultilevel *);
-	RaptorSolver(raptor::ParMultilevel *, const RaptorParMatrix *);
-
-	virtual void Setup() const;
+	RaptorSolver();
+	RaptorSolver(const RaptorParMatrix *);
+	virtual void Setup() const = 0;
+	virtual void Solve(const raptor::ParVector &, raptor::ParVector &) const = 0;
 
 	virtual void Mult(const RaptorParVector &, RaptorParVector&) const;
-	virtual void Mult(const Vector &, Vector &) const;
+	virtual void Mult(const Vector &, Vector &) const override;
 	using Operator::Mult;
 	void SetOperator(const Operator &) override
 	{
@@ -118,23 +121,62 @@ public:
 	}
 
 	virtual ~RaptorSolver();
-
 	void WrapVectors(const Vector &, Vector &) const;
-
 
 protected:
 	const RaptorParMatrix *A;
 	mutable RaptorParVector *B, *X;
-	mutable bool setup_called;
-	mutable raptor::ParMultilevel *target;
 };
 
 
-class RaptorRugeStuben : public RaptorSolver
+class RaptorMultilevel : public RaptorSolver
+{
+public:
+	RaptorMultilevel(raptor::ParMultilevel *);
+	RaptorMultilevel(raptor::ParMultilevel *, const RaptorParMatrix *);
+	virtual ~RaptorMultilevel();
+
+	void Setup() const override;
+	void Solve(const raptor::ParVector &, raptor::ParVector &) const override;
+	void PrintResiduals() const;
+	void SetMaxIter(int maxiter) { target->max_iterations = maxiter; }
+	void SetTol(double tol) { target->solve_tol = tol; }
+	void SetOperator(const Operator &) override;
+	operator raptor::ParMultilevel *() { return target; }
+
+protected:
+	mutable raptor::ParMultilevel *target;
+	mutable int iters;
+	mutable bool setup_called;
+};
+
+
+class RaptorRugeStuben : public RaptorMultilevel
 {
 public:
 	RaptorRugeStuben();
 	RaptorRugeStuben(const RaptorParMatrix &);
+
+	void SetDefaultOptions();
+};
+
+
+class RaptorPCG : public RaptorSolver
+{
+public:
+	RaptorPCG(MPI_Comm);
+	void SetOperator(const Operator &) override;
+	void SetPreconditioner(RaptorMultilevel &);
+	void SetTol(double tol) { rtol_ = tol; }
+	void SetMaxIter(int maxiter) { maxiter_ = maxiter; }
+
+	void Setup() const override {}
+	void Solve(const raptor::ParVector &, raptor::ParVector &) const override;
+
+protected:
+	RaptorMultilevel *precond_;
+	int maxiter_;
+	double rtol_;
 };
 
 // Return the matrix P^t * A * P
