@@ -164,7 +164,8 @@ void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
    {
       // construct a parallel block-diagonal matrix 'A' based on 'a'
       dA.MakeSquareBlockDiag(pfes->GetComm(), pfes->GlobalVSize(),
-                             pfes->GetDofOffsets(), A_local);
+                             pfes->GetDofOffsets(), A_local,
+                             pfes->GetFE(0)->GetDof());
    }
    else
    {

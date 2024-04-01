@@ -153,7 +153,8 @@ public:
        matrix using the currently set type id. */
    /** The operator ownership flag is set to true. */
    void MakeSquareBlockDiag(MPI_Comm comm, HYPRE_BigInt glob_size,
-                            HYPRE_BigInt *row_starts, SparseMatrix *diag);
+                            HYPRE_BigInt *row_starts, SparseMatrix *diag,
+                            int block_size = 1);
 
    /** @brief Reset the OperatorHandle to hold a parallel rectangular
        block-diagonal matrix using the currently set type id. */
