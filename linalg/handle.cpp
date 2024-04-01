@@ -68,7 +68,7 @@ Operator::Type OperatorHandle::CheckType(Operator::Type tid)
 #ifdef MFEM_USE_MPI
 void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, HYPRE_BigInt glob_size,
                                          HYPRE_BigInt *row_starts,
-                                         SparseMatrix *diag)
+                                         SparseMatrix *diag, int block_size)
 {
    if (own_oper) { delete oper; }
 
@@ -94,7 +94,7 @@ void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, HYPRE_BigInt glob_size,
 #ifdef MFEM_USE_RAPTOR
    case Operator::RAPTOR_ParCSR:
    case Operator::RAPTOR_ParBSR:
-	   oper = new RaptorParMatrix(comm, glob_size, row_starts, diag, type_id);
+	   oper = new RaptorParMatrix(comm, glob_size, row_starts, diag, type_id, block_size);
 	   break;
 #endif
       default: MFEM_ABORT(not_supported_msg << type_id);

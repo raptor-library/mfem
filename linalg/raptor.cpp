@@ -75,22 +75,31 @@ RaptorParMatrix::RaptorParMatrix()
 
 
 RaptorParMatrix::RaptorParMatrix(raptor::ParMatrix *m, bool owner)
-	: Operator(m->on_proc->n_rows, m->on_proc->n_cols), mat(m), X(NULL), Y(NULL),
-	  owns_mat(owner) {}
+    : Operator(m->on_proc->n_rows, m->on_proc->n_cols), mat(m), X(NULL),
+      Y(NULL), owns_mat(owner) {
+	auto bsr = dynamic_cast<raptor::ParBSRMatrix*>(m);
+	if (bsr) {
+		height *= bsr->on_proc->b_rows;
+		width *= bsr->on_proc->b_cols;
+	}
+}
 
 
 
 RaptorParMatrix::RaptorParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
                                  HYPRE_BigInt *row_starts, SparseMatrix *diag,
-                                 Operator::Type tid)
+                                 Operator::Type tid, int block_size)
 	: Operator(diag->Height(), diag->Width()),
+	  block_size(block_size),
 	  X(NULL), Y(NULL),
 	  owns_mat(true)
 {
 	if (tid == Operator::Type::RAPTOR_ParCSR) {
 		ConstructBlockDiagCSR(comm, glob_size, row_starts, diag);
+	} else if (tid == Operator::Type::RAPTOR_ParBSR) {
+		ConstructBlockDiagBSR(comm, glob_size, row_starts, diag, block_size);
 	} else {
-		mfem_error("Raptor BSR not yet implemented");
+		mfem_error("RaptorParMatrix: unkown Operator Type");
 	}
 }
 
@@ -160,6 +169,39 @@ void RaptorParMatrix::CopyCSR(raptor::CSRMatrix & dst,
 }
 
 
+void RaptorParMatrix::CopyBSR(raptor::BSRMatrix &bsr,
+                              const SparseMatrix &diag,
+                              int block_size) {
+	auto & browptr = bsr.idx1;
+	auto & bcolind = bsr.idx2;
+	auto & bvalues = bsr.block_vals;
+
+	auto rowptr = diag.GetI();
+	auto colind = diag.GetJ();
+	auto values = diag.GetData();
+
+	bvalues.resize(browptr.size() - 1);
+	bcolind.resize(browptr.size() - 1);
+
+	for (int block_index = 0; block_index < browptr.size() - 1; ++block_index) {
+		browptr[block_index + 1] = browptr[block_index] + 1;
+		bcolind[block_index] = block_index; // TODO: check if this is global
+		int start = block_index * block_size;
+		auto vals = new double[block_size * block_size]();
+		for (int i = 0; i < block_size; i++) {
+			int ii = start + i;
+			for (int off = rowptr[ii]; off < rowptr[ii + 1]; ++off) {
+				int j = colind[off] - start;
+				vals[i * block_size + j] = values[off]; // TODO: check if blocks are row major
+			}
+		}
+		bvalues[block_index] = vals;
+	}
+
+	bsr.nnz = browptr.size() - 1;
+}
+
+
 void RaptorParMatrix::ConstructBlockDiagCSR(MPI_Comm comm,
                                             HYPRE_BigInt glob_size,
                                             HYPRE_BigInt *row_starts,
@@ -177,6 +219,37 @@ void RaptorParMatrix::ConstructBlockDiagCSR(MPI_Comm comm,
 	mat->off_proc->idx1.resize(mat->off_proc->n_rows + 1);
 	std::fill(mat->off_proc->idx1.begin(), mat->off_proc->idx1.end(), 0.);
 	// mat->off_proc->resize(0, 0);
+}
+
+
+void RaptorParMatrix::ConstructBlockDiagBSR(MPI_Comm comm,
+                                            HYPRE_BigInt glob_size,
+                                            HYPRE_BigInt *row_starts,
+                                            SparseMatrix *diag,
+                                            int block_size)
+{
+	int lsize = row_starts[1] - row_starts[0];
+	MFEM_ASSERT(lsize % block_size == 0, "RaptorParMatrix: block_size must evenly divide local rows");
+	MFEM_ASSERT(glob_size % block_size == 0, "RaptorParMatrix: block_size must evenly divide global rows");
+	mat = new raptor::ParBSRMatrix(glob_size / block_size, glob_size / block_size,
+	                               lsize / block_size, lsize / block_size,
+	                               row_starts[0] / block_size, row_starts[0] / block_size,
+	                               block_size, block_size);
+	auto & on_proc = dynamic_cast<raptor::BSRMatrix&>(*mat->on_proc);
+	CopyBSR(on_proc, *diag, block_size);
+}
+
+
+namespace {
+template <class M>
+void multwrap(M & A, double a, double b, const raptor::ParVector & x, raptor::ParVector & y, raptor::ParVector & tmp) {
+	A.mult(const_cast<raptor::ParVector&>(x), tmp);
+	if (b != 0.)
+		y.scale(b);
+	else
+		y.set_const_value(0.);
+	y.axpy(tmp, a);
+}
 }
 
 
@@ -200,16 +273,13 @@ void RaptorParMatrix::Mult(double a, const Vector & x, double b, Vector & y) con
 
    // todo: avoid tmp with raptor support for this
    raptor::ParVector tmp(GetGlobalNumRows(), Height());
-   raptor::ParCSRMatrix &A = dynamic_cast<raptor::ParCSRMatrix&>(*mat);
    raptor::ParVector *xr = *X;
    raptor::ParVector *yr = *Y;
 
-   A.mult(*xr, tmp);
-   if (b != 0.)
-	   yr->scale(b);
-   else
-	   yr->set_const_value(0.);
-   yr->axpy(tmp, a);
+   if (GetType() == RAPTOR_ParBSR)
+	   multwrap(dynamic_cast<raptor::ParBSRMatrix&>(*mat), a, b, *xr, *yr, tmp);
+   else if (GetType() == RAPTOR_ParCSR)
+	   multwrap(dynamic_cast<raptor::ParCSRMatrix&>(*mat), a, b, *xr, *yr, tmp);
 }
 
 
@@ -483,7 +553,8 @@ void RaptorParMatrix::Print(const char *fname) const
 	auto & diag = *mat->on_proc;
 	auto & offd = *mat->off_proc;
 
-	std::ofstream ofile(fname);
+	int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	std::ofstream ofile(fname + std::to_string(rank));
 	ofile.precision(14);
 	for (std::size_t i = 0; i < diag.n_rows; ++i) {
 		auto write_row = [&](const raptor::Matrix & m, const std::vector<int> & colmap) {
@@ -675,7 +746,9 @@ RaptorParMatrix * RAP(RaptorParMatrix * A, RaptorParMatrix * P)
 	MFEM_VERIFY(A->Width() == P->Height(),
 	            "Raptor RAP: Number of local cols of A " << A->Width() <<
 	            " differs from the number of local rows of P " << P->Height());
-	MFEM_VERIFY(A->GetType() == P->GetType(), "Raptor RAP: mixing operator types is not supported");
+	if (A->GetType() != Operator::Type::RAPTOR_ParBSR) { // allow this for now
+		MFEM_VERIFY(A->GetType() == P->GetType(), "Raptor RAP: mixing operator types is not supported");
+	}
 
 	if (A->GetType() == Operator::Type::RAPTOR_ParCSR) {
 		raptor::ParCSRMatrix *Ar = *A;
@@ -686,8 +759,12 @@ RaptorParMatrix * RAP(RaptorParMatrix * A, RaptorParMatrix * P)
 		delete AP;
 
 		return new RaptorParMatrix(PtAP);
+	} else if (A->GetType() == Operator::RAPTOR_ParBSR) {
+		// TODO: assuming R == P == I
+		raptor::ParBSRMatrix *Ar = *A;
+		return new RaptorParMatrix(Ar->copy());
 	} else {
-		mfem_error("Raptor RAP: BSR not implemented");
+		mfem_error("Raptor RAP: unknown operator type");
 		return nullptr;
 	}
 }

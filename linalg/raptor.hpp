@@ -58,7 +58,7 @@ public:
 	// block-diagonal square parallel matrix
 	RaptorParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
 	                HYPRE_BigInt *row_starts, SparseMatrix *diag,
-	                Operator::Type tid);
+	                Operator::Type tid, int block_size);
 	explicit RaptorParMatrix(raptor::ParMatrix * m, bool owner = true);
 	explicit RaptorParMatrix(const HypreParMatrix *ha,
 	                         Operator::Type tid = Operator::RAPTOR_ParCSR);
@@ -91,14 +91,17 @@ public:
 private:
 	void ConstructBlockDiagCSR(MPI_Comm comm, HYPRE_BigInt glob_size,
 	                           HYPRE_BigInt *row_starts, SparseMatrix *diag);
-	void ConstructBlocKDiagBSR(MPI_Comm comm, HYPRE_BigInt glob_size,
-	                           HYPRE_BigInt *row_starts, SparseMatrix *diag);
+	void ConstructBlockDiagBSR(MPI_Comm comm, HYPRE_BigInt glob_size,
+	                           HYPRE_BigInt *row_starts, SparseMatrix *diag,
+	                           int block_size);
 	void CopyCSR(raptor::CSRMatrix & csr, const SparseMatrix & diag);
+	void CopyBSR(raptor::BSRMatrix & bsr, const SparseMatrix & diag, int block_size);
 	raptor::ParMatrix * Convert(const HypreParMatrix & ha,
 	                            Operator::Type tid);
 	void Destroy();
 
 	raptor::ParMatrix *mat;
+	int block_size;
 	mutable RaptorParVector *X, *Y;
 	bool owns_mat;
 };
