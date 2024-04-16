@@ -792,6 +792,65 @@ void EliminateBC(RaptorParMatrix & A, RaptorParMatrix & Ae,
 	}
 }
 
+RaptorParMatrix * BlockInvScale(const RaptorParMatrix & A) {
+	MFEM_VERIFY(A.GetType() == Operator::Type::RAPTOR_ParBSR, "BlockInvScale not implemented for ParCSR");
+
+	raptor::ParBSRMatrix *Ar = A;
+	auto & diag = *Ar->on_proc;
+	MFEM_VERIFY(diag.b_rows == diag.b_cols, "RaptorBSR blocks must be square");
+
+	std::vector<int> ipiv;
+	std::vector<double> invwork;
+	invwork.resize(1); // for initial query
+	auto block_size = diag.b_rows;
+	ipiv.resize(block_size);
+
+	auto Binv = new raptor::ParBSRMatrix(Ar->global_num_rows, Ar->global_num_cols,
+	                                     Ar->local_num_rows, Ar->local_num_rows,
+	                                     Ar->partition->first_local_row,
+	                                     Ar->partition->first_local_col,
+	                                     block_size, block_size);
+
+	auto & browptr = Binv->on_proc->idx1;
+	auto & bcolind = Binv->on_proc->idx2;
+	auto & bvalues = dynamic_cast<raptor::BSRMatrix&>(*Binv->on_proc).block_vals;
+	bvalues.resize(browptr.size() - 1);
+	bcolind.resize(browptr.size() - 1);
+
+	auto & rowptr = diag.idx1;
+	auto & colind = diag.idx2;
+	const auto & values = dynamic_cast<const raptor::BSRMatrix&>(diag).block_vals;
+	for (int block = 0; block < rowptr.size() - 1; ++block) {
+		browptr[block + 1] = browptr[block] + 1;
+		bcolind[block] = block;
+		bvalues[block] = new double[block_size * block_size]();
+		auto curr_block = bvalues[block];
+
+		for (int off = rowptr[block]; off < rowptr[block + 1]; ++off) {
+			if (block == colind[off])
+				std::copy(values[off], values[off] + (block_size * block_size), curr_block);
+		}
+
+		int info;
+		dgetrf_(&block_size, &block_size, curr_block, &block_size, ipiv.data(), &info);
+		MFEM_VERIFY(info == 0, "block factorization failed");
+
+		int query = -1;
+		int invwork_size;
+		dgetri_(&block_size, curr_block, &block_size, ipiv.data(), invwork.data(), &query, &info);
+		MFEM_VERIFY(info == 0, "blockinv query failed");
+
+		invwork_size = invwork[0];
+		invwork.resize(invwork_size);
+		dgetri_(&block_size, curr_block, &block_size, ipiv.data(), invwork.data(), &invwork_size, &info);
+
+		MFEM_VERIFY(info == 0, "block inversion failed");
+	}
+
+	// save Binv
+	return new RaptorParMatrix(Binv->mult(Ar));
+}
+
 }
 
 #endif // MFEM_USE_MPI
