@@ -13,11 +13,70 @@
 //              polynomial degrees can be specified by command line options.
 
 #include "mfem.hpp"
-#include <fstream>
 #include <iostream>
 
 using namespace std;
 using namespace mfem;
+
+template <class T> void set_iters(T&) {}
+template <>
+void set_iters<RaptorRugeStuben>(RaptorRugeStuben & s) {
+   s.SetMaxIter(1);
+}
+
+template <class O, class S> void raptorpcg(O &, S &, const Vector &, Vector &) {}
+template <>
+void raptorpcg<RaptorParMatrix, RaptorRugeStuben>(RaptorParMatrix & A,
+                                                  RaptorRugeStuben & M,
+                                                  const Vector & B, Vector & X)
+{
+   RaptorPCG cg(MPI_COMM_WORLD);
+   cg.SetTol(1e-12);
+   cg.SetMaxIter(2000);
+   cg.SetPreconditioner(M);
+   cg.SetOperator(A);
+   cg.Mult(B, X);
+}
+
+template <class OpType>
+void run(ParBilinearForm & a, ParGridFunction & x,
+         ParLinearForm & b, Array<int> & boundary_dofs,
+         ParMesh & mesh, bool raptor_pcg) {
+
+   // 10. Form the linear system A X = B. This includes eliminating boundary
+   //     conditions, applying AMR constraints, parallel assembly, etc.
+   OpType A;
+
+   Vector B, X;
+   a.FormLinearSystem(boundary_dofs, x, b, A, X, B);
+
+   using solver_type =
+      typename std::conditional<std::is_same<OpType, HypreParMatrix>::value,
+                                HypreBoomerAMG, RaptorRugeStuben>::type;
+   solver_type M(A);
+   set_iters(M);
+
+   if (raptor_pcg) {
+      raptorpcg(A, M, B, X);
+   } else {
+      // GMRESSolver cg(MPI_COMM_WORLD);
+      CGSolver cg(MPI_COMM_WORLD);
+      // MINRESSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(1);
+      cg.SetPreconditioner(M);
+      cg.SetOperator(A);
+
+      cg.Mult(B, X);
+   }
+   // 12. Recover the solution x as a grid function and save to file. The output
+   //     can be viewed using GLVis as follows: "glvis -np <np> -m mesh -g sol"
+   a.RecoverFEMSolution(X, b, x);
+   x.Save("sol");
+   mesh.Save("mesh");
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -28,11 +87,23 @@ int main(int argc, char *argv[])
    // 2. Parse command line options.
    string mesh_file = "../data/star.mesh";
    int order = 1;
+   bool use_raptor = false;
+   bool raptor_pcg = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
+   args.AddOption(&use_raptor, "-r", "--raptor", "-h", "--hypre", "Use raptor");
+   args.AddOption(&raptor_pcg, "-p", "--raptorpcg", "-f", "--mfem", "use mfem cg");
    args.ParseCheck();
+
+   if (Mpi::Root()) {
+      if (use_raptor) {
+         std::cout << "Using Raptor" << std::endl;
+      } else {
+         std::cout << "Using Hypre" << std::endl;
+      }
+   }
 
    // 3. Read the serial mesh from the given mesh file.
    Mesh serial_mesh(mesh_file);
@@ -71,30 +142,15 @@ int main(int argc, char *argv[])
 
    // 9. Set up the bilinear form a(.,.) corresponding to the -Delta operator.
    ParBilinearForm a(&fespace);
+   if (use_raptor)
+      a.SetOperatorType(Operator::RAPTOR_ParCSR);
    a.AddDomainIntegrator(new DiffusionIntegrator);
    a.Assemble();
 
-   // 10. Form the linear system A X = B. This includes eliminating boundary
-   //     conditions, applying AMR constraints, parallel assembly, etc.
-   HypreParMatrix A;
-   Vector B, X;
-   a.FormLinearSystem(boundary_dofs, x, b, A, X, B);
-
-   // 11. Solve the system using PCG with hypre's BoomerAMG preconditioner.
-   HypreBoomerAMG M(A);
-   CGSolver cg(MPI_COMM_WORLD);
-   cg.SetRelTol(1e-12);
-   cg.SetMaxIter(2000);
-   cg.SetPrintLevel(1);
-   cg.SetPreconditioner(M);
-   cg.SetOperator(A);
-   cg.Mult(B, X);
-
-   // 12. Recover the solution x as a grid function and save to file. The output
-   //     can be viewed using GLVis as follows: "glvis -np <np> -m mesh -g sol"
-   a.RecoverFEMSolution(X, b, x);
-   x.Save("sol");
-   mesh.Save("mesh");
+   if (use_raptor)
+      run<RaptorParMatrix>(a, x, b, boundary_dofs, mesh, raptor_pcg);
+   else
+      run<HypreParMatrix>(a, x, b, boundary_dofs, mesh, raptor_pcg);
 
    return 0;
 }
