@@ -220,7 +220,7 @@ void OperatorHandle::MakeRAP(OperatorHandle &Rt, OperatorHandle &A,
    }
 }
 
-void OperatorHandle::ConvertFrom(OperatorHandle &A)
+void OperatorHandle::ConvertFrom(OperatorHandle &A, int block_size)
 {
    if (own_oper) { delete oper; }
    if (Type() == A.Type() || Type() == Operator::ANY_TYPE)
@@ -272,7 +272,7 @@ void OperatorHandle::ConvertFrom(OperatorHandle &A)
          {
          case Operator::Hypre_ParCSR:
 #ifdef MFEM_USE_RAPTOR
-            oper = new RaptorParMatrix(A.As<HypreParMatrix>(), Type());
+            oper = new RaptorParMatrix(A.As<HypreParMatrix>(), Type(), block_size);
 #endif
             break;
          default: break;

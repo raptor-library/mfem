@@ -74,11 +74,18 @@ RaptorParMatrix::RaptorParMatrix()
    : Operator(0, 0), mat(NULL), X(NULL), Y(NULL), owns_mat(false) {}
 
 
+RaptorParMatrix::RaptorParMatrix(const RaptorParMatrix &other)
+   : RaptorParMatrix(other.mat->copy()) {}
+
+
 RaptorParMatrix::RaptorParMatrix(raptor::ParMatrix *m, bool owner)
    : Operator(m->on_proc->n_rows, m->on_proc->n_cols), mat(m), X(NULL),
      Y(NULL), owns_mat(owner) {
    auto bsr = dynamic_cast<raptor::ParBSRMatrix*>(m);
    if (bsr) {
+      MFEM_ASSERT(bsr->on_proc->b_rows == bsr->on_proc->b_cols,
+                  "RaptorParMatrix: BSR support limited to square blocks");
+      block_size = bsr->on_proc->b_rows;
       height *= bsr->on_proc->b_rows;
       width *= bsr->on_proc->b_cols;
    }
@@ -103,8 +110,10 @@ RaptorParMatrix::RaptorParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
 }
 
 
-RaptorParMatrix::RaptorParMatrix(const HypreParMatrix *ha, Operator::Type tid)
+RaptorParMatrix::RaptorParMatrix(const HypreParMatrix *ha, Operator::Type tid,
+                                 int block_size)
    : Operator(ha->Height(), ha->Width()),
+     block_size(block_size),
      X(NULL), Y(NULL),
      owns_mat(true)
 {
@@ -144,7 +153,11 @@ void RaptorParMatrix::MakeRef(const RaptorParMatrix & other)
 raptor::ParMatrix * RaptorParMatrix::Convert(const HypreParMatrix & ha,
                                              Operator::Type tid)
 {
-   return convert(static_cast<hypre_ParCSRMatrix*>(ha), ha.GetComm());
+   if (tid == RAPTOR_ParBSR)
+      return raptor::convert(static_cast<hypre_ParCSRMatrix*>(ha),
+                             block_size, block_size, ha.GetComm());
+   else
+      return raptor::convert(static_cast<hypre_ParCSRMatrix*>(ha), ha.GetComm());
 }
 
 
@@ -230,12 +243,16 @@ void RaptorParMatrix::ConstructBlockDiagBSR(MPI_Comm comm,
    int lsize = row_starts[1] - row_starts[0];
    MFEM_ASSERT(lsize % block_size == 0, "RaptorParMatrix: block_size must evenly divide local rows");
    MFEM_ASSERT(glob_size % block_size == 0, "RaptorParMatrix: block_size must evenly divide global rows");
+   MFEM_ASSERT((row_starts[0] % block_size == 0) &&
+               (row_starts[1] % block_size == 0),
+               "RaptorParMatrix: block_size must evenly divide row_starts");
    mat = new raptor::ParBSRMatrix(glob_size / block_size, glob_size / block_size,
                                   lsize / block_size, lsize / block_size,
                                   row_starts[0] / block_size, row_starts[0] / block_size,
                                   block_size, block_size);
    auto & on_proc = dynamic_cast<raptor::BSRMatrix&>(*mat->on_proc);
    CopyBSR(on_proc, *diag, block_size);
+   mat->finalize();
 }
 
 
@@ -549,29 +566,70 @@ RaptorParMatrix::operator raptor::ParBSRMatrix * () const
 
 void RaptorParMatrix::Print(const char *fname) const
 {
-   auto & diag = *mat->on_proc;
-   auto & offd = *mat->off_proc;
-
    int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
    std::ofstream ofile(fname + std::to_string(rank));
    ofile.precision(14);
-   for (std::size_t i = 0; i < diag.n_rows; ++i) {
-      auto write_row = [&](const raptor::Matrix & m, const std::vector<int> & colmap) {
-         const auto & rowptr = m.idx1;
-         const auto & colind = m.idx2;
-         const auto & values = m.vals;
-         for (std::size_t off = rowptr[i]; off < rowptr[i+1]; ++off) {
-            ofile << mat->get_local_row_map()[i] << " "
-                  << colmap[colind[off]] << " "
-                  << std::scientific << values[off] << '\n';
-         }
-      };
 
-      write_row(diag, mat->get_on_proc_column_map());
-      write_row(offd, mat->get_off_proc_column_map());
+   if (GetType() == RAPTOR_ParBSR) {
+      auto & diag = dynamic_cast<raptor::BSRMatrix&>(*mat->on_proc);
+      auto & offd = dynamic_cast<raptor::BSRMatrix&>(*mat->off_proc);
+      for (std::size_t i = 0; i < diag.n_rows; ++i) {
+         auto write_row = [&](const raptor::BSRMatrix & m, const std::vector<int> & colmap) {
+            const auto & rowptr = m.idx1;
+            const auto & colind = m.idx2;
+            const auto & values = m.block_vals;
+            auto block_row = mat->get_local_row_map()[i];
+            static constexpr double tol = 1e-15;
+            for (std::size_t off = rowptr[i]; off < rowptr[i+1]; ++off) {
+               auto block_col = colmap[colind[off]];
+               auto block_val = values[off];
+               for (std::size_t jj = 0; jj < block_size; ++jj) {
+                  for (std::size_t ii = 0; ii < block_size; ++ii) {
+                     auto val = block_val[jj*block_size + ii];
+                     if (std::abs(val) > tol) {
+                        ofile << block_row * block_size + ii << " "
+                              << block_col * block_size + jj << " "
+                              << std::scientific << val << '\n';
+                     }
+                  }
+               }
+            }
+         };
+
+         write_row(diag, mat->get_on_proc_column_map());
+         write_row(offd, mat->get_off_proc_column_map());
+      }
+   }
+   else
+   {
+      auto & diag = *mat->on_proc;
+      auto & offd = *mat->off_proc;
+
+      for (std::size_t i = 0; i < diag.n_rows; ++i) {
+         auto write_row = [&](const raptor::Matrix & m, const std::vector<int> & colmap) {
+            const auto & rowptr = m.idx1;
+            const auto & colind = m.idx2;
+            const auto & values = m.vals;
+            for (std::size_t off = rowptr[i]; off < rowptr[i+1]; ++off) {
+               ofile << mat->get_local_row_map()[i] << " "
+                     << colmap[colind[off]] << " "
+                     << std::scientific << values[off] << '\n';
+            }
+         };
+
+         write_row(diag, mat->get_on_proc_column_map());
+         write_row(offd, mat->get_off_proc_column_map());
+      }
    }
 }
 
+
+MPI_Comm RaptorParMatrix::GetComm() const
+{
+   MFEM_VERIFY(mat, "RaptorParMatrix: no associated matrix");
+   MFEM_VERIFY(mat->comm, "RaptorParMatrix: CommPkg not created");
+   return mat->comm->mpi_comm;
+}
 
 RaptorSolver::RaptorSolver() : A(NULL), B(NULL), X(NULL) {}
 RaptorSolver::RaptorSolver(const RaptorParMatrix * a) :
@@ -787,6 +845,61 @@ void EliminateBC(RaptorParMatrix & A, RaptorParMatrix & Ae,
    for (int i = 0; i < ess_dof_list.Size(); ++i) {
       int r = ess_dof_list[i];
       b(r) = data[I[r]] * x(r);
+   }
+}
+
+
+void Scale(double alpha, RaptorParMatrix & A) {
+   raptor::ParMatrix *mat = A;
+   MFEM_VERIFY(mat, "no associated Raptor matrix object");
+   auto scale = [&](raptor::CSRMatrix & a) {
+      if (A.GetType() == Operator::RAPTOR_ParBSR) {
+         auto block_len = A.GetBlockSize() * A.GetBlockSize();
+         auto & bsr = dynamic_cast<raptor::BSRMatrix&>(a);
+         for (auto & bvals : bsr.block_vals) {
+            for (std::size_t i = 0; i < block_len; ++i)
+               bvals[i] = alpha * bvals[i];
+         }
+      } else {
+         for (auto & v : a.vals) v *= alpha;
+      }
+   };
+   scale(dynamic_cast<raptor::CSRMatrix&>(*mat->on_proc));
+   if (mat->off_proc_num_cols)
+      scale(dynamic_cast<raptor::CSRMatrix&>(*mat->off_proc));
+}
+
+
+void bsr_sum(const raptor::BSRMatrix &B, raptor::BSRMatrix &A) {
+   MFEM_ASSERT((B.n_rows == A.n_rows) &&
+               (B.n_cols == A.n_cols) &&
+               (B.b_rows == A.b_rows) &&
+               (B.b_cols == A.b_cols), "BSR Sum: matrix dimensions must match");
+   std::vector<int> marker(A.n_cols, -1);
+   for (int r = 0; r < A.n_rows; ++r) {
+      for (int off = A.idx1[r]; off < A.idx1[r+1]; ++off) {
+         marker[A.idx2[off]] = off;
+      }
+
+      for (int off = B.idx1[r]; off < B.idx1[r+1]; ++off) {
+         auto pos = marker[B.idx2[off]];
+         MFEM_ASSERT(pos >= A.idx1[r], "Entry in B not present in A");
+         for (int i = 0; i < A.b_size; ++i) {
+            A.block_vals[pos][i] += B.block_vals[off][i];
+         }
+      }
+   }
+}
+
+
+void SumDiag(const RaptorParMatrix & B, RaptorParMatrix & A)
+{
+   MFEM_ASSERT(B.GetType() == A.GetType(), "SumDiag: A and B must have same operator type");
+   if (A.GetType() == Operator::RAPTOR_ParBSR) {
+      raptor::ParBSRMatrix *Ar = A;
+      const raptor::ParBSRMatrix *Br = B;
+      bsr_sum(dynamic_cast<const raptor::BSRMatrix&>(*Br->on_proc),
+              dynamic_cast<raptor::BSRMatrix&>(*Ar->on_proc));
    }
 }
 

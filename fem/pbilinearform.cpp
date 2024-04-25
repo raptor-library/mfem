@@ -197,7 +197,7 @@ void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
       // - hdA owns the new HypreParMatrix
       // - the above constructor copies all input arrays
       glob_J.DeleteAll();
-      dA.ConvertFrom(hdA);
+      dA.ConvertFrom(hdA, pfes->GetFE(0)->GetDof());
    }
 
    // TODO - assemble the Dof_TrueDof_Matrix directly in the required format?

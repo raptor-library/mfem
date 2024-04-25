@@ -179,16 +179,16 @@ public:
    /** The operator ownership flag is set to false if the object held by @a A
        will be held by this object as well, e.g. when the source and destination
        types are the same; otherwise it is set to true. */
-   void ConvertFrom(OperatorHandle &A);
+   void ConvertFrom(OperatorHandle &A, int block_size = 1);
 
    /// Convert the given OpType pointer, @a A, to the currently set type id.
    /** This method creates a temporary OperatorHandle for @a A and invokes
        ConvertFrom(OperatorHandle &) with it. */
    template <typename OpType>
-   void ConvertFrom(OpType *A)
+   void ConvertFrom(OpType *A, int block_size = 1)
    {
       OperatorHandle Ah(A, false);
-      ConvertFrom(Ah);
+      ConvertFrom(Ah, block_size);
    }
 
    /** @brief Reset the OperatorHandle to be the eliminated part of @a A after

@@ -54,6 +54,7 @@ private:
 
 class RaptorParMatrix : public Operator {
 public:
+   RaptorParMatrix(const RaptorParMatrix & other);
    RaptorParMatrix();
    // block-diagonal square parallel matrix
    RaptorParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
@@ -61,7 +62,8 @@ public:
                    Operator::Type tid, int block_size);
    explicit RaptorParMatrix(raptor::ParMatrix * m, bool owner = true);
    explicit RaptorParMatrix(const HypreParMatrix *ha,
-                            Operator::Type tid = Operator::RAPTOR_ParCSR);
+                            Operator::Type tid = Operator::RAPTOR_ParCSR,
+                            int block_size = 1);
    ~RaptorParMatrix();
 
    operator raptor::ParMatrix*() const { return mat; }
@@ -72,6 +74,7 @@ public:
    void Mult(const Vector & x, Vector & y) const override {
       Mult(1., x, 0., y);
    };
+
    Operator::Type GetType() const;
 
    void MakeRef(const RaptorParMatrix & m);
@@ -86,7 +89,11 @@ public:
       return mat->global_num_cols;
    }
 
+   int GetBlockSize() const { return block_size; }
+
    void Print(const char *fname) const;
+
+   MPI_Comm GetComm() const;
 
 private:
    void ConstructBlockDiagCSR(MPI_Comm comm, HYPRE_BigInt glob_size,
@@ -188,6 +195,11 @@ RaptorParMatrix *RAP(RaptorParMatrix *A, RaptorParMatrix *P);
 void EliminateBC(RaptorParMatrix & A, RaptorParMatrix & Ae,
                  const Array<int> & ess_dof_list,
                  const Vector & X, Vector & B);
+
+// scale entries of A by alpha
+void Scale(double alpha, RaptorParMatrix &A);
+void SumDiag(const RaptorParMatrix & A, RaptorParMatrix & B);
+
 }
 
 #endif // MFEM_USE_MPI
