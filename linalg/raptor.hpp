@@ -200,6 +200,8 @@ void EliminateBC(RaptorParMatrix & A, RaptorParMatrix & Ae,
 void Scale(double alpha, RaptorParMatrix &A);
 void SumDiag(const RaptorParMatrix & A, RaptorParMatrix & B);
 
+void output(const char * fname, const raptor::BSRMatrix & bsr);
+void output(const char * fname, const raptor::CSRMatrix & csr);
 }
 
 #endif // MFEM_USE_MPI

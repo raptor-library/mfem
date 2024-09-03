@@ -903,6 +903,35 @@ void SumDiag(const RaptorParMatrix & B, RaptorParMatrix & A)
    }
 }
 
+
+namespace {
+template <class T>
+void writevec(std::string fname, const std::vector<T> & v) {
+   std::ofstream ofile(fname.c_str());
+   ofile.precision(14);
+    for (const auto & val : v)
+      ofile << val << '\n';
+}
+}
+void output(const char * fname, const raptor::BSRMatrix & bsr) {
+   std::string pre{fname};
+   writevec({fname + std::string{".rowptr"}}, bsr.idx1);
+   writevec({fname + std::string{".colind"}}, bsr.idx2);
+
+   std::string data_name{pre + std::string{".values"}};
+   std::ofstream ofile(data_name.c_str());
+   ofile.precision(14);
+   for (auto v : bsr.block_vals) {
+      for (int i = 0; i < bsr.b_size; ++i)
+         ofile << v[i] << '\n';
+   }
+}
+void output(const char *fname, const raptor::CSRMatrix & csr) {
+   std::string pre{fname};
+   writevec({fname + std::string{".rowptr"}}, csr.idx1);
+   writevec({fname + std::string{".colind"}}, csr.idx2);
+   writevec({fname + std::string{".values"}}, csr.vals);
+}
 }
 
 #endif // MFEM_USE_MPI

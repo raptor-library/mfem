@@ -67,6 +67,11 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(boundary_dofs, x, b, A, X, B);
 
+   std::ofstream afile("A.mtx"), bfile("b.txt"), xfile("x.txt");
+   A.PrintMM(afile);
+   for (auto bv : B) bfile << bv << '\n';
+   for (auto xv : X) xfile << xv << '\n';
+
    // 9. Solve the system using PCG with symmetric Gauss-Seidel preconditioner.
    GSSmoother M(A);
    PCG(A, M, B, X, 1, 200, 1e-12, 0.0);

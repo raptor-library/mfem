@@ -45,6 +45,7 @@
 //               are also illustrated.
 
 #include "mfem.hpp"
+#include <raptor/ruge_stuben/par_air_solver.hpp>
 #include <fstream>
 #include <iostream>
 
@@ -126,8 +127,79 @@ public:
 };
 #endif
 
+struct isolver : Solver {
+	virtual void SetTimeStep(real_t dt) = 0;
+};
 
-class DG_Solver : public Solver
+struct raptor_solver : isolver
+{
+   raptor_solver(RaptorParMatrix & M, RaptorParMatrix & K) :
+      M(M), K(K), A(NULL),
+      linear_solver(M.GetComm()),
+      dt(-1.0) {
+
+      linear_solver.iterative_mode = false;
+      linear_solver.SetRelTol(1e-9);
+      linear_solver.SetAbsTol(0.0);
+      linear_solver.SetMaxIter(100);
+      linear_solver.SetPrintLevel(0);
+      // linear_solver.SetPreconditioner(*prec);
+   }
+
+   void SetTimeStep(real_t dt)
+   {
+      if (dt != this->dt) {
+         this->dt = dt;
+         delete A;
+         // Form operator A = M - dt*K
+         A = new RaptorParMatrix{K};
+         Scale(-dt, *A);
+         SumDiag(M, *A);
+         linear_solver.SetOperator(*A);
+         { // debug
+            raptor::ParBSRMatrix *rA = *A;
+            raptor::ParAIRSolver slv;
+            slv.max_levels = 2;
+            slv.setup(rA);
+            // auto S = rA->strength(raptor::strength_t::Classical, .1);
+            // std::vector<int> states, off_proc_states;
+            // auto C = raptor::split_rs(S, states, off_proc_states);
+            // int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+            // std::cout << "[" << rank << "] " <<
+            //    rA->on_proc->idx2.size() << " " << S->on_proc->idx2.size() << std::endl;
+            // output("bsr-a", dynamic_cast<raptor::BSRMatrix&>(*rA->on_proc));
+            // output("bsr-s", dynamic_cast<raptor::CSRMatrix&>(*S->on_proc));
+            MPI_Barrier(MPI_COMM_WORLD);
+            MPI_Abort(MPI_COMM_WORLD, 0);
+         }
+      }
+   }
+
+   void SetOperator(const Operator & op)
+   {
+      linear_solver.SetOperator(op);
+   }
+
+   virtual void Mult(const Vector & x, Vector & y) const
+   {
+      linear_solver.Mult(x, y);
+   }
+
+   ~raptor_solver()
+   {
+      delete prec;
+      delete A;
+   }
+private:
+   RaptorParMatrix &M, &K;
+   RaptorParMatrix *A;
+   GMRESSolver linear_solver;
+   Solver *prec;
+   real_t dt;
+};
+
+
+class DG_Solver : public isolver
 {
 private:
    HypreParMatrix &M, &K;
@@ -215,13 +287,13 @@ private:
    const Vector &b;
    Solver *M_prec;
    CGSolver M_solver;
-   DG_Solver *dg_solver;
+   isolver *dg_solver;
 
    mutable Vector z;
 
 public:
    FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, const Vector &b_,
-                PrecType prec_type);
+                PrecType prec_type, bool use_raptor);
 
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void ImplicitSolve(const real_t dt, const Vector &x, Vector &k);
@@ -262,6 +334,7 @@ int main(int argc, char *argv[])
 #else
    PrecType prec_type = PrecType::ILU;
 #endif
+   bool use_raptor = false;
    int precision = 8;
    cout.precision(precision);
 
@@ -314,6 +387,7 @@ int main(int argc, char *argv[])
                   "Use binary (Sidre) or ascii format for VisIt data files.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&use_raptor, "-r", "--raptor", "-h", "--hypre", "Use raptor");
    args.Parse();
    if (!args.Good())
    {
@@ -564,7 +638,7 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*m, *k, *B, prec_type);
+   FE_Evolution adv(*m, *k, *B, prec_type, use_raptor);
 
    real_t t = 0.0;
    adv.SetTime(t);
@@ -658,15 +732,22 @@ int main(int argc, char *argv[])
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
-                           const Vector &b_, PrecType prec_type)
+                           const Vector &b_, PrecType prec_type, bool use_raptor)
    : TimeDependentOperator(M_.ParFESpace()->GetTrueVSize()), b(b_),
      M_solver(M_.ParFESpace()->GetComm()),
      z(height)
 {
    if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
-      M.Reset(M_.ParallelAssemble(), true);
-      K.Reset(K_.ParallelAssemble(), true);
+      if (use_raptor) {
+         M.SetType(Operator::RAPTOR_ParBSR);
+         M_.ParallelAssemble(M);
+         K.SetType(Operator::RAPTOR_ParBSR);
+         K_.ParallelAssemble(K);
+      } else {
+         M.Reset(M_.ParallelAssemble(), true);
+         K.Reset(K_.ParallelAssemble(), true);
+      }
    }
    else
    {
@@ -679,12 +760,19 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
    Array<int> ess_tdof_list;
    if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
-      HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
-      HypreParMatrix &K_mat = *K.As<HypreParMatrix>();
-      HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::Jacobi);
-      M_prec = hypre_prec;
+      if (use_raptor) {
+         auto & M_mat = *M.As<RaptorParMatrix>();
+         auto & K_mat = *K.As<RaptorParMatrix>();
+         M_prec = nullptr;
+         dg_solver = new raptor_solver(M_mat, K_mat);
+      } else {
+         HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
+         HypreParMatrix &K_mat = *K.As<HypreParMatrix>();
+         HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::Jacobi);
+         M_prec = hypre_prec;
 
-      dg_solver = new DG_Solver(M_mat, K_mat, *M_.FESpace(), prec_type);
+         dg_solver = new DG_Solver(M_mat, K_mat, *M_.FESpace(), prec_type);
+      }
    }
    else
    {
@@ -692,7 +780,8 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
       dg_solver = NULL;
    }
 
-   M_solver.SetPreconditioner(*M_prec);
+   if (M_prec)
+      M_solver.SetPreconditioner(*M_prec);
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-9);
    M_solver.SetAbsTol(0.0);
@@ -722,7 +811,8 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 
 FE_Evolution::~FE_Evolution()
 {
-   delete M_prec;
+   if (M_prec)
+      delete M_prec;
    delete dg_solver;
 }
 
