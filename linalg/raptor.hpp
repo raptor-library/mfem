@@ -92,6 +92,7 @@ public:
    int GetBlockSize() const { return block_size; }
 
    void Print(const char *fname) const;
+   void Write(const char *fname) const;
 
    MPI_Comm GetComm() const;
 
@@ -199,7 +200,6 @@ void EliminateBC(RaptorParMatrix & A, RaptorParMatrix & Ae,
 // scale entries of A by alpha
 void Scale(double alpha, RaptorParMatrix &A);
 void SumDiag(const RaptorParMatrix & A, RaptorParMatrix & B);
-
 }
 
 #endif // MFEM_USE_MPI

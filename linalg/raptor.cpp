@@ -15,6 +15,7 @@
 #ifdef MFEM_USE_RAPTOR
 
 #include <fstream>
+#include <array>
 
 #include <raptor/core/par_matrix.hpp>
 #include <raptor/external/hypre_wrapper.hpp>
@@ -563,6 +564,112 @@ RaptorParMatrix::operator raptor::ParBSRMatrix * () const
    return dynamic_cast<raptor::ParBSRMatrix*>(mat);
 }
 
+namespace {
+
+void write_header(const char *fname, const raptor::ParCSRMatrix & mat) {
+   std::ofstream ofile(std::string(fname) + ".hdr", std::ios_base::binary);
+
+   int nprocs; MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+   std::array<int, 4> buf{
+      0, // csr
+      mat.global_num_rows,
+      mat.global_num_cols,
+      nprocs};
+
+   ofile.write(reinterpret_cast<const char*>(buf.data()), sizeof(int)*buf.size());
+}
+
+
+void write_header(const char *fname, const raptor::ParBSRMatrix & mat) {
+   std::ofstream ofile(std::string(fname) + ".hdr", std::ios_base::binary);
+
+   int nprocs; MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+   auto & diag = dynamic_cast<raptor::BSRMatrix&>(*mat.on_proc);
+   std::array<int, 6> buf{
+      1, // bsr
+      mat.global_num_rows,
+      mat.global_num_cols,
+      nprocs,
+      diag.b_rows,
+      diag.b_cols};
+
+   ofile.write(reinterpret_cast<const char*>(buf.data()), sizeof(int)*buf.size());
+}
+
+
+inline void write_colinds(std::ostream & out,
+                          int r,
+                          const raptor::Matrix & mat,
+                          const std::vector<int> & colmap) {
+   for (int i = mat.idx1[r]; i < mat.idx1[r + 1]; ++i) {
+      int gcol = colmap[mat.idx2[i]];
+      out.write(reinterpret_cast<const char *>(&gcol), sizeof(int));
+   }
+}
+
+inline void write_rowptr(std::ostream & out,
+                         const raptor::Matrix & diag,
+                         const raptor::Matrix & offd) {
+   for (int i = 0; i < diag.n_rows + 1; ++i) {
+      int ptr = diag.idx1[i] + offd.idx1[i];
+      out.write(reinterpret_cast<const char *>(&ptr), sizeof(int));
+   }
+}
+
+inline void write_values(std::ostream & out,
+                         int r,
+                         const raptor::BSRMatrix & mat) {
+   for (int j = mat.idx1[r]; j < mat.idx1[r + 1]; ++j) {
+      out.write(reinterpret_cast<const char *>(mat.block_vals[j]),
+                mat.b_size * sizeof(double));
+   }
+}
+
+inline void write_values(std::ostream & out,
+                         int r,
+                         const raptor::CSRMatrix & mat) {
+   out.write(reinterpret_cast<const char *>(&mat.vals[mat.idx1[r]]),
+             (mat.idx1[r + 1] - mat.idx1[r]) * sizeof(double));
+}
+
+template<class T>
+void write_rows(std::ostream & out,
+                const T & diag, const T & offd,
+                const std::vector<int> & diag_colmap, const std::vector<int> & offd_colmap) {
+   out.write(reinterpret_cast<const char*>(&diag.n_rows), sizeof(diag.n_rows));
+   write_rowptr(out, diag, offd);
+   for (int i = 0; i < diag.n_rows; ++i) {
+      write_colinds(out, i, diag, diag_colmap);
+      write_colinds(out, i, offd, offd_colmap);
+   }
+   for (int i = 0; i < diag.n_rows; ++i) {
+      write_values(out, i, diag);
+      write_values(out, i, offd);
+   }
+}
+
+}
+
+
+void RaptorParMatrix::Write(const char *fname) const
+{
+   int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   std::ostringstream rank_file;
+   rank_file << fname << '.' << rank;
+   std::ofstream ofile(rank_file.str(), std::ios_base::binary);
+
+   if (GetType() == RAPTOR_ParBSR) {
+      if (rank == 0) write_header(fname, dynamic_cast<const raptor::ParBSRMatrix&>(*mat));
+      auto & diag = dynamic_cast<raptor::BSRMatrix&>(*mat->on_proc);
+      auto & offd = dynamic_cast<raptor::BSRMatrix&>(*mat->off_proc);
+      write_rows(ofile, diag, offd, mat->on_proc_column_map, mat->off_proc_column_map);
+   } else if (GetType() == RAPTOR_ParCSR) {
+      if (rank == 0) write_header(fname, dynamic_cast<const raptor::ParCSRMatrix&>(*mat));
+      auto & diag = dynamic_cast<raptor::CSRMatrix&>(*mat->on_proc);
+      auto & offd = dynamic_cast<raptor::CSRMatrix&>(*mat->off_proc);
+      write_rows(ofile, diag, offd, mat->on_proc_column_map, mat->off_proc_column_map);
+   }
+}
 
 void RaptorParMatrix::Print(const char *fname) const
 {
@@ -583,9 +690,9 @@ void RaptorParMatrix::Print(const char *fname) const
             for (std::size_t off = rowptr[i]; off < rowptr[i+1]; ++off) {
                auto block_col = colmap[colind[off]];
                auto block_val = values[off];
-               for (std::size_t jj = 0; jj < block_size; ++jj) {
-                  for (std::size_t ii = 0; ii < block_size; ++ii) {
-                     auto val = block_val[jj*block_size + ii];
+               for (std::size_t ii = 0; ii < block_size; ++ii) {
+                  for (std::size_t jj = 0; jj < block_size; ++jj) {
+                     auto val = block_val[ii*block_size + jj];
                      if (std::abs(val) > tol) {
                         ofile << block_row * block_size + ii << " "
                               << block_col * block_size + jj << " "
@@ -627,6 +734,9 @@ void RaptorParMatrix::Print(const char *fname) const
 MPI_Comm RaptorParMatrix::GetComm() const
 {
    MFEM_VERIFY(mat, "RaptorParMatrix: no associated matrix");
+   if (!mat->comm) {
+      mat->comm = new raptor::ParComm(mat->partition, mat->off_proc_column_map, mat->on_proc_column_map);
+   }
    MFEM_VERIFY(mat->comm, "RaptorParMatrix: CommPkg not created");
    return mat->comm->mpi_comm;
 }
@@ -892,6 +1002,24 @@ void bsr_sum(const raptor::BSRMatrix &B, raptor::BSRMatrix &A) {
 }
 
 
+void csr_sum(const raptor::CSRMatrix &B, raptor::CSRMatrix &A) {
+   MFEM_ASSERT((B.n_rows == A.n_rows) &&
+               (B.n_cols == A.n_cols), "CSR Sum: matrix dimensions must match");
+   std::vector<int> marker(A.n_cols, -1);
+   for (int r = 0; r < A.n_rows; ++r) {
+      for (int off = A.idx1[r]; off < A.idx1[r+1]; ++off) {
+         marker[A.idx2[off]] = off;
+      }
+
+      for (int off = B.idx1[r]; off < B.idx1[r+1]; ++off) {
+         auto pos = marker[B.idx2[off]];
+         MFEM_ASSERT(pos >= A.idx1[r], "Entry in B not present in A");
+         A.vals[pos] += B.vals[off];
+      }
+   }
+}
+
+
 void SumDiag(const RaptorParMatrix & B, RaptorParMatrix & A)
 {
    MFEM_ASSERT(B.GetType() == A.GetType(), "SumDiag: A and B must have same operator type");
@@ -900,6 +1028,11 @@ void SumDiag(const RaptorParMatrix & B, RaptorParMatrix & A)
       const raptor::ParBSRMatrix *Br = B;
       bsr_sum(dynamic_cast<const raptor::BSRMatrix&>(*Br->on_proc),
               dynamic_cast<raptor::BSRMatrix&>(*Ar->on_proc));
+   } else if (A.GetType() == Operator::RAPTOR_ParCSR) {
+      raptor::ParCSRMatrix *Ar = A;
+      const raptor::ParCSRMatrix *Br = B;
+      csr_sum(dynamic_cast<const raptor::CSRMatrix &>(*Br->on_proc),
+              dynamic_cast<raptor::CSRMatrix&>(*Ar->on_proc));
    }
 }
 
