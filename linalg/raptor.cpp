@@ -23,6 +23,7 @@
 #include <raptor/core/types.hpp>
 #include <raptor/krylov/par_cg.hpp>
 #include <raptor/ruge_stuben/ruge_stuben_solver.hpp>
+#include <raptor/util/writer.hpp>
 
 #include "hypre.hpp"
 #include "linalg.hpp"
@@ -564,110 +565,13 @@ RaptorParMatrix::operator raptor::ParBSRMatrix * () const
    return dynamic_cast<raptor::ParBSRMatrix*>(mat);
 }
 
-namespace {
-
-void write_header(const char *fname, const raptor::ParCSRMatrix & mat) {
-   std::ofstream ofile(std::string(fname) + ".hdr", std::ios_base::binary);
-
-   int nprocs; MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
-   std::array<int, 4> buf{
-      0, // csr
-      mat.global_num_rows,
-      mat.global_num_cols,
-      nprocs};
-
-   ofile.write(reinterpret_cast<const char*>(buf.data()), sizeof(int)*buf.size());
-}
-
-
-void write_header(const char *fname, const raptor::ParBSRMatrix & mat) {
-   std::ofstream ofile(std::string(fname) + ".hdr", std::ios_base::binary);
-
-   int nprocs; MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
-   auto & diag = dynamic_cast<raptor::BSRMatrix&>(*mat.on_proc);
-   std::array<int, 6> buf{
-      1, // bsr
-      mat.global_num_rows,
-      mat.global_num_cols,
-      nprocs,
-      diag.b_rows,
-      diag.b_cols};
-
-   ofile.write(reinterpret_cast<const char*>(buf.data()), sizeof(int)*buf.size());
-}
-
-
-inline void write_colinds(std::ostream & out,
-                          int r,
-                          const raptor::Matrix & mat,
-                          const std::vector<int> & colmap) {
-   for (int i = mat.idx1[r]; i < mat.idx1[r + 1]; ++i) {
-      int gcol = colmap[mat.idx2[i]];
-      out.write(reinterpret_cast<const char *>(&gcol), sizeof(int));
-   }
-}
-
-inline void write_rowptr(std::ostream & out,
-                         const raptor::Matrix & diag,
-                         const raptor::Matrix & offd) {
-   for (int i = 0; i < diag.n_rows + 1; ++i) {
-      int ptr = diag.idx1[i] + offd.idx1[i];
-      out.write(reinterpret_cast<const char *>(&ptr), sizeof(int));
-   }
-}
-
-inline void write_values(std::ostream & out,
-                         int r,
-                         const raptor::BSRMatrix & mat) {
-   for (int j = mat.idx1[r]; j < mat.idx1[r + 1]; ++j) {
-      out.write(reinterpret_cast<const char *>(mat.block_vals[j]),
-                mat.b_size * sizeof(double));
-   }
-}
-
-inline void write_values(std::ostream & out,
-                         int r,
-                         const raptor::CSRMatrix & mat) {
-   out.write(reinterpret_cast<const char *>(&mat.vals[mat.idx1[r]]),
-             (mat.idx1[r + 1] - mat.idx1[r]) * sizeof(double));
-}
-
-template<class T>
-void write_rows(std::ostream & out,
-                const T & diag, const T & offd,
-                const std::vector<int> & diag_colmap, const std::vector<int> & offd_colmap) {
-   out.write(reinterpret_cast<const char*>(&diag.n_rows), sizeof(diag.n_rows));
-   write_rowptr(out, diag, offd);
-   for (int i = 0; i < diag.n_rows; ++i) {
-      write_colinds(out, i, diag, diag_colmap);
-      write_colinds(out, i, offd, offd_colmap);
-   }
-   for (int i = 0; i < diag.n_rows; ++i) {
-      write_values(out, i, diag);
-      write_values(out, i, offd);
-   }
-}
-
-}
-
 
 void RaptorParMatrix::Write(const char *fname) const
 {
-   int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-   std::ostringstream rank_file;
-   rank_file << fname << '.' << rank;
-   std::ofstream ofile(rank_file.str(), std::ios_base::binary);
-
    if (GetType() == RAPTOR_ParBSR) {
-      if (rank == 0) write_header(fname, dynamic_cast<const raptor::ParBSRMatrix&>(*mat));
-      auto & diag = dynamic_cast<raptor::BSRMatrix&>(*mat->on_proc);
-      auto & offd = dynamic_cast<raptor::BSRMatrix&>(*mat->off_proc);
-      write_rows(ofile, diag, offd, mat->on_proc_column_map, mat->off_proc_column_map);
+      raptor::write(fname, dynamic_cast<const raptor::ParBSRMatrix&>(*mat));
    } else if (GetType() == RAPTOR_ParCSR) {
-      if (rank == 0) write_header(fname, dynamic_cast<const raptor::ParCSRMatrix&>(*mat));
-      auto & diag = dynamic_cast<raptor::CSRMatrix&>(*mat->on_proc);
-      auto & offd = dynamic_cast<raptor::CSRMatrix&>(*mat->off_proc);
-      write_rows(ofile, diag, offd, mat->on_proc_column_map, mat->off_proc_column_map);
+      raptor::write(fname, dynamic_cast<const raptor::ParCSRMatrix&>(*mat));
    }
 }
 
@@ -1035,7 +939,6 @@ void SumDiag(const RaptorParMatrix & B, RaptorParMatrix & A)
               dynamic_cast<raptor::CSRMatrix&>(*Ar->on_proc));
    }
 }
-
 }
 
 #endif // MFEM_USE_MPI
